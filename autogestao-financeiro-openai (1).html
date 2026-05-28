@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoGestão — Financeiro para Oficinas</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-primary:#ffffff;--bg-secondary:#f5f5f4;--bg-tertiary:#f0efed;
+  --text-primary:#1c1c1a;--text-secondary:#6b6b68;--text-hint:#9a9a97;
+  --border-light:rgba(0,0,0,0.1);--border-medium:rgba(0,0,0,0.15);
+  --radius-md:8px;--radius-lg:12px;--radius-xl:16px;
+  --green:#1D9E75;--green-dark:#0F6E56;--green-light:#EAF3DE;--green-text:#3B6D11;
+  --red:#E24B4A;--red-light:#FCEBEB;--red-text:#A32D2D;
+  --amber:#BA7517;--amber-light:#FAEEDA;--amber-text:#854F0B;
+  --blue:#185FA5;--blue-light:#E6F1FB;--blue-text:#0C447C;
+  --purple:#8B5CF6;--purple-light:#EEEDFE;--purple-text:#3C3489;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg-tertiary);color:var(--text-primary);min-height:100vh;font-size:14px}
+.app{max-width:1280px;margin:0 auto;background:var(--bg-primary);min-height:100vh;box-shadow:0 0 40px rgba(0,0,0,.08)}
+
+/* HEADER */
+.header{background:var(--bg-secondary);border-bottom:1px solid var(--border-light);padding:14px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50}
+.logo{width:38px;height:38px;background:var(--green);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0}
+.header-title{font-size:17px;font-weight:600;color:var(--text-primary)}
+.header-sub{font-size:12px;color:var(--text-secondary)}
+.header-actions{margin-left:auto;display:flex;gap:8px}
+
+/* NAV */
+.nav{display:flex;gap:0;padding:0 24px;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);overflow-x:auto}
+.nav-btn{padding:11px 16px;font-size:13px;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-family:inherit;display:flex;align-items:center;gap:6px;transition:color .15s}
+.nav-btn i{font-size:16px}
+.nav-btn.active{color:var(--green);border-bottom-color:var(--green);font-weight:500}
+.nav-btn:hover:not(.active){color:var(--text-primary)}
+
+/* CONTENT */
+.content{padding:24px}
+.panel{display:none}
+.panel.active{display:block}
+
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.metric-card{background:var(--bg-secondary);border-radius:var(--radius-md);padding:16px}
+.metric-label{font-size:11px;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px;font-weight:500}
+.metric-value{font-size:24px;font-weight:600}
+.metric-value.green{color:var(--green)}
+.metric-value.red{color:var(--red)}
+.metric-value.amber{color:var(--amber)}
+.metric-value.blue{color:var(--blue)}
+
+/* SECTION TITLE */
+.section-title{font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.section-title i{font-size:18px;color:var(--text-secondary)}
+
+/* CARDS */
+.card{background:var(--bg-primary);border:1px solid var(--border-light);border-radius:var(--radius-lg);padding:18px;margin-bottom:16px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* UPLOAD */
+.upload-area{border:2px dashed var(--border-medium);border-radius:var(--radius-lg);padding:40px 20px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s}
+.upload-area:hover{background:var(--bg-secondary);border-color:var(--green)}
+.upload-area .icon{font-size:40px;color:var(--text-hint)}
+.upload-area p{font-size:13px;color:var(--text-secondary);margin-top:10px}
+.upload-area p.small{font-size:11px;margin-top:4px;color:var(--text-hint)}
+
+/* BUTTONS */
+.btn{padding:8px 16px;border-radius:var(--radius-md);font-size:13px;cursor:pointer;font-family:inherit;border:1px solid var(--border-medium);background:var(--bg-primary);color:var(--text-primary);font-weight:500;display:inline-flex;align-items:center;gap:6px;transition:background .12s}
+.btn i{font-size:15px}
+.btn:hover{background:var(--bg-secondary)}
+.btn.primary{background:var(--green);border-color:var(--green);color:#fff}
+.btn.primary:hover{background:var(--green-dark)}
+.btn.danger{background:var(--red-light);border-color:rgba(226,75,74,.3);color:var(--red-text)}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+/* FORM */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-row.full{grid-template-columns:1fr}
+.form-group label{font-size:12px;color:var(--text-secondary);display:block;margin-bottom:5px;font-weight:500}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;padding:9px 12px;border:1px solid var(--border-medium);border-radius:var(--radius-md);
+  font-size:13px;font-family:inherit;background:var(--bg-primary);color:var(--text-primary);
+  transition:border-color .12s
+}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--green)}
+.form-group textarea{resize:vertical;min-height:72px}
+
+/* TABLE */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 12px;font-size:11px;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-light);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--border-light);color:var(--text-primary);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--bg-secondary)}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge.pago,.badge.recebido{background:var(--green-light);color:var(--green-text)}
+.badge.pendente{background:var(--amber-light);color:var(--amber-text)}
+.badge.vencido{background:var(--red-light);color:var(--red-text)}
+.badge.os{background:var(--blue-light);color:var(--blue-text)}
+.badge.fornecedores{background:var(--green-light);color:var(--green-text)}
+.badge.salario{background:var(--blue-light);color:var(--blue-text)}
+.badge.impostos{background:var(--amber-light);color:var(--amber-text)}
+.badge.fixas{background:var(--purple-light);color:var(--purple-text)}
+
+/* AI */
+.ai-result{background:var(--bg-secondary);border-radius:var(--radius-md);padding:16px;margin-top:14px;font-size:13px;line-height:1.7;border-left:3px solid var(--green)}
+.ai-label{font-size:11px;color:var(--green);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:6px}
+.ai-label i{font-size:14px}
+
+/* SPINNER */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border-medium);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* LIVRO CAIXA ENTRY */
+.lc-entry{display:grid;grid-template-columns:100px 1fr 120px 120px;gap:10px;align-items:center;padding:9px 12px;border-radius:var(--radius-md);font-size:13px}
+.lc-entry:nth-child(odd){background:var(--bg-secondary)}
+.lc-date{color:var(--text-secondary);font-size:12px}
+.lc-e{color:var(--green);font-weight:600}
+.lc-s{color:var(--red);font-weight:600}
+
+/* CENTRO CUSTO ROWS */
+.cc-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-light)}
+.cc-row:last-child{border-bottom:none}
+.cc-name{font-size:13px;font-weight:500;flex:1;min-width:130px}
+.cc-bar-wrap{flex:2;height:8px;background:var(--bg-secondary);border-radius:4px;overflow:hidden}
+.cc-bar{height:100%;border-radius:4px;transition:width .4s ease}
+.cc-val{font-size:13px;font-weight:600;min-width:90px;text-align:right}
+.cc-pct{font-size:12px;color:var(--text-secondary);min-width:38px;text-align:right}
+
+/* FILE PREVIEW */
+.file-preview{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg-secondary);border-radius:var(--radius-md);margin-top:12px;font-size:13px;border:1px solid var(--border-light)}
+.file-preview i{font-size:22px;color:var(--blue)}
+
+/* INNER TABS */
+.tab-inner{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab-inner button{padding:7px 14px;font-size:12px;border-radius:var(--radius-md);border:1px solid var(--border-medium);background:var(--bg-primary);color:var(--text-secondary);cursor:pointer;font-family:inherit;font-weight:500;transition:background .12s}
+.tab-inner button.active{background:var(--green);border-color:var(--green);color:#fff}
+
+/* PERIOD SELECTOR */
+.period-selector{display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
+.period-selector label{font-size:13px;color:var(--text-secondary);font-weight:500}
+.period-selector select{width:auto;padding:7px 12px;border:1px solid var(--border-medium);border-radius:var(--radius-md);font-family:inherit;font-size:13px;background:var(--bg-primary);color:var(--text-primary)}
+
+/* FILTER ROW */
+.filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filter-row select{width:auto;padding:7px 12px;border:1px solid var(--border-medium);border-radius:var(--radius-md);font-family:inherit;font-size:13px;background:var(--bg-primary);color:var(--text-primary)}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg-primary);border-radius:var(--radius-xl);border:1px solid var(--border-light);padding:24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+.modal-title i{font-size:20px;color:var(--green)}
+.close-btn{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary);line-height:1;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.close-btn:hover{background:var(--bg-secondary)}
+
+/* CHART WRAPPER */
+.chart-wrap{position:relative;width:100%;height:220px}
+.chart-wrap-lg{position:relative;width:100%;height:260px}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:32px;color:var(--text-secondary);font-size:13px}
+.empty i{font-size:36px;display:block;margin-bottom:8px;opacity:.4}
+
+/* DIVIDER */
+.divider{height:1px;background:var(--border-light);margin:16px 0}
+
+/* VCTO ROW */
+.vcto-item{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border-light);font-size:13px}
+.vcto-item:last-child{border-bottom:none}
+
+@media(max-width:700px){
+  .grid-2{grid-template-columns:1fr}
+  .form-row,.form-row.three{grid-template-columns:1fr}
+  .lc-entry{grid-template-columns:80px 1fr;gap:6px}
+  .lc-entry .lc-e,.lc-entry .lc-s{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo"><i class="ti ti-tool"></i></div>
+    <div>
+      <div class="header-title">AutoGestão — Financeiro</div>
+      <div class="header-sub">Controle financeiro para oficinas mecânicas</div>
+    </div>
+    <div style="margin-left:16px;font-size:12px;padding:5px 10px;background:var(--bg-secondary);border-radius:var(--radius-md);border:1px solid var(--border-light)" id="db-status">
+      <i class="ti ti-cloud" style="color:var(--text-secondary)"></i> Conectando...
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="openModal('modal-add-pagar')"><i class="ti ti-plus"></i> A Pagar</button>
+      <button class="btn primary" onclick="openModal('modal-add-receber')"><i class="ti ti-plus"></i> A Receber</button>
+    </div>
+  </div>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showPanel('dashboard',this)"><i class="ti ti-layout-dashboard"></i> Dashboard</button>
+    <button class="nav-btn" onclick="showPanel('receber',this)"><i class="ti ti-arrow-down-circle"></i> Contas a Receber</button>
+    <button class="nav-btn" onclick="showPanel('pagar',this)"><i class="ti ti-arrow-up-circle"></i> Contas a Pagar</button>
+    <button class="nav-btn" onclick="showPanel('livrocaixa',this)"><i class="ti ti-notebook"></i> Livro Caixa</button>
+    <button class="nav-btn" onclick="showPanel('custos',this)"><i class="ti ti-chart-pie"></i> Centros de Custo</button>
+    <button class="nav-btn" onclick="showPanel('documentos',this)"><i class="ti ti-file-scan"></i> Ler Documentos (IA)</button>
+  </nav>
+
+  <div class="content">
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="metrics">
+        <div class="metric-card">
+          <div class="metric-label">A Receber (mês)</div>
+          <div class="metric-value green" id="m-receber">R$ 0,00</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">A Pagar (mês)</div>
+          <div class="metric-value red" id="m-pagar">R$ 0,00</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Saldo do Período</div>
+          <div class="metric-value" id="m-saldo">R$ 0,00</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Vencidos (pagar)</div>
+          <div class="metric-value amber" id="m-vencidos">0</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-title"><i class="ti ti-alert-triangle"></i> Próximos Vencimentos</div>
+          <div id="proximos-vctos"><div class="empty"><i class="ti ti-calendar-off"></i>Nenhum vencimento próximo.</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title"><i class="ti ti-chart-bar"></i> Centros de Custo (mês)</div>
+          <div id="cc-mini"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title"><i class="ti ti-clock"></i> Últimos Lançamentos</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Centro</th><th>Valor</th><th>Status</th></tr></thead>
+            <tbody id="tbody-recentes"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CONTAS A RECEBER ==================== -->
+    <div class="panel" id="panel-receber">
+      <div class="section-title"><i class="ti ti-arrow-down-circle"></i> Contas a Receber</div>
+      <div class="filter-row">
+        <select id="filtro-receber" onchange="renderReceber()">
+          <option value="">Todos os status</option>
+          <option value="pendente">Pendente</option>
+          <option value="recebido">Recebido</option>
+          <option value="vencido">Vencido</option>
+        </select>
+        <button class="btn primary" onclick="openModal('modal-add-receber')"><i class="ti ti-plus"></i> Nova O.S. / Recebimento</button>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Cliente</th><th>Descrição / O.S.</th><th>Vencimento</th><th>Forma</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="tbody-receber"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CONTAS A PAGAR ==================== -->
+    <div class="panel" id="panel-pagar">
+      <div class="section-title"><i class="ti ti-arrow-up-circle"></i> Contas a Pagar</div>
+      <div class="filter-row">
+        <select id="filtro-pagar" onchange="renderPagar()">
+          <option value="">Todos os status</option>
+          <option value="pendente">Pendente</option>
+          <option value="pago">Pago</option>
+          <option value="vencido">Vencido</option>
+        </select>
+        <select id="filtro-centro" onchange="renderPagar()">
+          <option value="">Todos os centros</option>
+          <option value="fornecedores">Fornecedores</option>
+          <option value="salario">Salário/Pessoal</option>
+          <option value="impostos">Impostos</option>
+          <option value="fixas">Despesas Fixas</option>
+        </select>
+        <button class="btn primary" onclick="openModal('modal-add-pagar')"><i class="ti ti-plus"></i> Novo Lançamento</button>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Fornecedor / Descrição</th><th>Centro de Custo</th><th>Vencimento</th><th>Doc.</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="tbody-pagar"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== LIVRO CAIXA ==================== -->
+    <div class="panel" id="panel-livrocaixa">
+      <div class="section-title"><i class="ti ti-notebook"></i> Livro Caixa</div>
+      <div class="period-selector">
+        <label>Período:</label>
+        <select id="lc-mes" onchange="renderLC()">
+          <option value="0">Janeiro</option><option value="1">Fevereiro</option><option value="2">Março</option>
+          <option value="3">Abril</option><option value="4">Maio</option><option value="5">Junho</option>
+          <option value="6">Julho</option><option value="7">Agosto</option><option value="8">Setembro</option>
+          <option value="9">Outubro</option><option value="10">Novembro</option><option value="11">Dezembro</option>
+        </select>
+        <select id="lc-ano" onchange="renderLC()">
+          <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+        </select>
+        <button class="btn" onclick="printLC()"><i class="ti ti-printer"></i> Imprimir Relatório</button>
+      </div>
+
+      <div class="metrics" id="lc-metrics"></div>
+
+      <div class="card">
+        <div class="section-title">Movimentações liquidadas no período</div>
+        <div id="lc-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title"><i class="ti ti-chart-bar"></i> Resumo por Centro de Custo</div>
+        <div id="lc-cc-resumo"></div>
+        <div class="divider"></div>
+        <div class="chart-wrap">
+          <canvas id="chart-lc" role="img" aria-label="Gráfico comparativo de entradas versus saídas do período">Comparativo entradas x saídas</canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CENTROS DE CUSTO ==================== -->
+    <div class="panel" id="panel-custos">
+      <div class="section-title"><i class="ti ti-chart-pie"></i> Análise por Centros de Custo</div>
+      <div class="period-selector">
+        <label>Período:</label>
+        <select id="cc-mes" onchange="renderCC()">
+          <option value="0">Janeiro</option><option value="1">Fevereiro</option><option value="2">Março</option>
+          <option value="3">Abril</option><option value="4">Maio</option><option value="5">Junho</option>
+          <option value="6">Julho</option><option value="7">Agosto</option><option value="8">Setembro</option>
+          <option value="9">Outubro</option><option value="10">Novembro</option><option value="11">Dezembro</option>
+        </select>
+        <select id="cc-ano" onchange="renderCC()">
+          <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+        </select>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-title">Distribuição de despesas</div>
+          <div id="cc-detalhe"></div>
+        </div>
+        <div class="card">
+          <div class="chart-wrap-lg">
+            <canvas id="chart-cc" role="img" aria-label="Gráfico de pizza dos centros de custo">Distribuição por centro de custo</canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Lançamentos detalhados por centro</div>
+        <div class="tab-inner">
+          <button class="active" onclick="filtrarCC('fornecedores',this)">Fornecedores</button>
+          <button onclick="filtrarCC('salario',this)">Salário/Pessoal</button>
+          <button onclick="filtrarCC('impostos',this)">Impostos</button>
+          <button onclick="filtrarCC('fixas',this)">Despesas Fixas</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Fornecedor</th><th>Descrição</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead>
+            <tbody id="tbody-cc-det"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== DOCUMENTOS IA ==================== -->
+    <div class="panel" id="panel-documentos">
+      <div class="section-title"><i class="ti ti-file-scan"></i> Leitura de Documentos com Inteligência Artificial</div>
+
+      <div class="card">
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
+          Envie uma foto ou imagem de <strong>boleto bancário</strong>, <strong>nota fiscal</strong> ou <strong>ordem de serviço</strong>.
+          A IA irá extrair automaticamente todos os dados e permitir o lançamento direto no sistema financeiro.
+        </p>
+
+        <div class="tab-inner">
+          <button class="active" id="tab-boleto" onclick="setDocTab('boleto',this)"><i class="ti ti-barcode"></i> Boleto / Nota Fiscal</button>
+          <button id="tab-os" onclick="setDocTab('os',this)"><i class="ti ti-clipboard-list"></i> Ordem de Serviço</button>
+        </div>
+
+        <div id="doc-upload-area">
+          <div class="upload-area" onclick="document.getElementById('file-input').click()" id="drop-zone">
+            <i class="ti ti-cloud-upload icon"></i>
+            <p>Clique para selecionar ou arraste o arquivo aqui</p>
+            <p class="small">Formatos aceitos: JPG, PNG, PDF — máx. 10 MB</p>
+          </div>
+          <input type="file" id="file-input" accept="image/*,.pdf" style="display:none" onchange="handleFile(this)">
+          <div id="file-preview-area"></div>
+        </div>
+
+        <div id="ai-result-area" style="display:none">
+          <div class="ai-result">
+            <div class="ai-label"><i class="ti ti-cpu"></i> Resultado da análise — IA</div>
+            <div id="ai-result-text"></div>
+          </div>
+          <div id="ai-form-area" style="margin-top:16px"></div>
+          <div class="btn-row">
+            <button class="btn primary" onclick="lancarDoAI()"><i class="ti ti-check"></i> Confirmar e Lançar</button>
+            <button class="btn" onclick="resetDoc()"><i class="ti ti-refresh"></i> Nova análise</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- API KEY -->
+      <div class="card" style="background:var(--bg-secondary)">
+        <div class="section-title" style="margin-bottom:10px"><i class="ti ti-key"></i> Configuração da API OpenAI (ChatGPT)</div>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
+          Para usar a leitura de documentos com IA, insira sua chave de API da OpenAI (ChatGPT).
+          A chave é salva apenas no navegador (localStorage).
+        </p>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="password" id="api-key-input" placeholder="sk-proj-..." style="flex:1;padding:9px 12px;border:1px solid var(--border-medium);border-radius:var(--radius-md);font-family:monospace;font-size:12px">
+          <button class="btn primary" onclick="saveApiKey()"><i class="ti ti-device-floppy"></i> Salvar</button>
+          <button class="btn" onclick="clearApiKey()"><i class="ti ti-trash"></i></button>
+        </div>
+        <div id="api-key-status" style="font-size:12px;margin-top:8px;color:var(--text-secondary)"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== MODAL: A RECEBER ==================== -->
+<div class="modal-bg" id="modal-add-receber">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-arrow-down-circle"></i> Nova Conta a Receber</span>
+      <button class="close-btn" onclick="closeModal('modal-add-receber')">×</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Cliente</label><input id="r-cliente" placeholder="Nome do cliente"></div>
+      <div class="form-group"><label>N° O.S.</label><input id="r-os" placeholder="OS-0001"></div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group"><label>Descrição do serviço</label><input id="r-desc" placeholder="Ex.: Troca de óleo, revisão completa..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Data de emissão</label><input type="date" id="r-data"></div>
+      <div class="form-group"><label>Valor total (R$)</label><input type="number" id="r-valor" placeholder="0,00" step="0.01" min="0" oninput="atualizarResumoReceber()"></div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group"><label>Forma de pagamento</label>
+        <select id="r-forma" onchange="toggleFormaReceber()">
+          <option value="pix">PIX</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="debito">Cartão débito (D+1)</option>
+          <option value="credito">Cartão crédito (antecipação D+1)</option>
+          <option value="boleto">Boleto</option>
+          <option value="transferencia">Transferência</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- PIX / Dinheiro / Transferência -->
+    <div id="r-bloco-simples" style="display:block">
+      <div class="form-row">
+        <div class="form-group"><label>Data de recebimento</label><input type="date" id="r-venc-simples"></div>
+      </div>
+    </div>
+
+    <!-- Débito D+1 -->
+    <div id="r-bloco-debito" style="display:none">
+      <div style="background:var(--blue-light);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--blue-text)">
+        <i class="ti ti-info-circle"></i> Débito: recebimento no próximo dia útil (D+1). Informe a taxa da maquininha.
+      </div>
+      <div class="form-row three">
+        <div class="form-group"><label>Data da venda</label><input type="date" id="r-debito-data-venda"></div>
+        <div class="form-group"><label>Taxa maquininha (%)</label><input type="number" id="r-debito-taxa" placeholder="1,99" step="0.01" min="0" value="1.99" oninput="atualizarResumoReceber()"></div>
+        <div class="form-group"><label>Líquido estimado</label><input type="text" id="r-debito-liquido" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--green)"></div>
+      </div>
+    </div>
+
+    <!-- Crédito parcelado antecipação D+1 -->
+    <div id="r-bloco-credito" style="display:none">
+      <div style="background:var(--purple-light);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--purple-text)">
+        <i class="ti ti-info-circle"></i> Crédito com antecipação total D+1. Informe parcelas, taxa e desconto de antecipação.
+      </div>
+      <div class="form-row three">
+        <div class="form-group"><label>N° de parcelas</label><input type="number" id="r-credito-parcelas" placeholder="1" min="1" max="24" value="1" oninput="atualizarResumoReceber()"></div>
+        <div class="form-group"><label>Taxa por parcela (%)</label><input type="number" id="r-credito-taxa" placeholder="2,99" step="0.01" min="0" value="2.99" oninput="atualizarResumoReceber()"></div>
+        <div class="form-group"><label>Taxa antecipação (%)</label><input type="number" id="r-credito-antecip" placeholder="1,50" step="0.01" min="0" value="1.50" oninput="atualizarResumoReceber()"></div>
+      </div>
+      <div id="r-credito-resumo" style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px;font-size:13px;margin-bottom:10px;display:none">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Valor bruto:</span><span id="r-cr-bruto" style="font-weight:600"></span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Desconto taxa parcelamento:</span><span id="r-cr-desc-parc" style="color:var(--red);font-weight:600"></span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Desconto antecipação:</span><span id="r-cr-desc-antecip" style="color:var(--red);font-weight:600"></span></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:6px;margin-top:4px"><span style="font-weight:600">Líquido que cai na conta:</span><span id="r-cr-liquido" style="font-weight:700;color:var(--green);font-size:15px"></span></div>
+      </div>
+    </div>
+
+    <!-- Boleto parcelado -->
+    <div id="r-bloco-boleto" style="display:none">
+      <div style="background:var(--amber-light);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--amber-text)">
+        <i class="ti ti-info-circle"></i> Informe as parcelas e o prazo de cada uma (ex: 2 parcelas com vencimento em 20 e 40 dias).
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>N° de parcelas</label><input type="number" id="r-boleto-parcelas" placeholder="1" min="1" max="12" value="1" oninput="gerarCamposBoleto()"></div>
+      </div>
+      <div id="r-boleto-campos"></div>
+    </div>
+
+    <div class="form-row full">
+      <div class="form-group"><label>Observações</label><textarea id="r-obs" placeholder="Notas adicionais..."></textarea></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" onclick="addReceber()"><i class="ti ti-check"></i> Salvar</button>
+      <button class="btn" onclick="closeModal('modal-add-receber')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: BAIXA RECEBIMENTO ==================== -->
+<div class="modal-bg" id="modal-baixa-receber">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-check-circle"></i> Registrar Recebimento</span>
+      <button class="close-btn" onclick="closeModal('modal-baixa-receber')">×</button>
+    </div>
+    <div id="baixa-info" style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px;margin-bottom:16px;font-size:13px"></div>
+    <div id="baixa-campos"></div>
+    <div class="btn-row">
+      <button class="btn primary" id="btn-confirmar-baixa"><i class="ti ti-check"></i> Confirmar recebimento</button>
+      <button class="btn" onclick="closeModal('modal-baixa-receber')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: A PAGAR ==================== -->
+<div class="modal-bg" id="modal-add-pagar">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-arrow-up-circle"></i> Nova Conta a Pagar</span>
+      <button class="close-btn" onclick="closeModal('modal-add-pagar')">×</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Fornecedor / Credor</label><input id="p-forn" placeholder="Nome do fornecedor"></div>
+      <div class="form-group"><label>Centro de Custo</label>
+        <select id="p-centro">
+          <option value="fornecedores">Fornecedores</option>
+          <option value="salario">Salário / Pessoal</option>
+          <option value="impostos">Impostos</option>
+          <option value="fixas">Despesas Fixas</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group"><label>Descrição</label><input id="p-desc" placeholder="Ex.: Peças, NF 1234, folha de pagamento..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Data de emissão</label><input type="date" id="p-data"></div>
+      <div class="form-group"><label>Data de vencimento</label><input type="date" id="p-venc"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Valor (R$)</label><input type="number" id="p-valor" placeholder="0,00" step="0.01" min="0"></div>
+      <div class="form-group"><label>N° Documento</label><input id="p-doc" placeholder="NF / boleto / DAS..."></div>
+    </div>
+    <div class="form-row full"><div class="form-group"><label>Código de barras <span style="font-size:11px;color:var(--text-secondary)">(opcional)</span></label><input id="p-barras" placeholder="Cole aqui o código de barras do boleto..." style="font-family:monospace;font-size:12px"></div></div>
+    <div class="form-row full">
+      <div class="form-group"><label>Observações</label><textarea id="p-obs" placeholder="Notas adicionais..."></textarea></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" onclick="addPagar()"><i class="ti ti-check"></i> Salvar</button>
+      <button class="btn" onclick="closeModal('modal-add-pagar')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: CONFIRMAR LIQUIDAÇÃO ==================== -->
+<div class="modal-bg" id="modal-confirm">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="confirm-title"><i class="ti ti-check-circle"></i> Confirmar liquidação</span>
+      <button class="close-btn" onclick="closeModal('modal-confirm')">×</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px" id="confirm-text"></p>
+    <div class="form-row">
+      <div class="form-group"><label>Data da liquidação</label><input type="date" id="confirm-date"></div>
+      <div class="form-group"><label>Valor pago/recebido (R$)</label><input type="number" id="confirm-valor" step="0.01"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="confirm-btn"><i class="ti ti-check"></i> Confirmar</button>
+      <button class="btn" onclick="closeModal('modal-confirm')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ============================================================
+// SUPABASE CONFIG
+// ============================================================
+const SB_URL = 'https://fchmtmwqnxgojmhtjbco.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaG10bXdxbnhnb2ptaHRqYmNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MjYwNjMsImV4cCI6MjA5NTUwMjA2M30.mRC6-YazX3JD-DM0w_I7t946ItTstFYw7ztAl4fPNec';
+
+const _sb = supabase.createClient(SB_URL, SB_KEY);
+
+async function sbFetch(path, method='GET', body=null) {
+  const [tableAndFilter] = path.split('?');
+  const filterStr = path.includes('?') ? path.split('?')[1] : '';
+  const fp = new URLSearchParams(filterStr);
+
+  if (method === 'GET') {
+    const order = fp.get('order');
+    let q = _sb.from(tableAndFilter).select('*');
+    if (order) { const parts = order.split('.'); q = q.order(parts[0], {ascending: parts[1]!=='desc'}); }
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+  if (method === 'POST') {
+    const { data, error } = await _sb.from(tableAndFilter).insert(body).select();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+  if (method === 'PATCH') {
+    let q = _sb.from(tableAndFilter).update(body);
+    fp.forEach((val, key) => { if (val.startsWith('eq.')) q = q.eq(key, val.replace('eq.','')); });
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+    return null;
+  }
+  if (method === 'DELETE') {
+    let q = _sb.from(tableAndFilter).delete();
+    fp.forEach((val, key) => { if (val.startsWith('eq.')) q = q.eq(key, val.replace('eq.','')); });
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+    return null;
+  }
+}
+
+async function carregarDados() {
+  try {
+    const [receber, pagar] = await Promise.all([
+      sbFetch('receber?select=*&order=created_at.desc'),
+      sbFetch('pagar?select=*&order=created_at.desc')
+    ]);
+    appData.receber = (receber||[]).map(r => ({
+      id: r.id, cliente: r.cliente||'', os: r.os||'', desc: r.descricao||'',
+      data: r.data||today(), venc: r.venc||today(), valor: Number(r.valor)||0,
+      forma: r.forma||'pix', status: r.status||'pendente', obs: r.obs||'',
+      valorLiquido: r.valor_liquido ? Number(r.valor_liquido) : null,
+      descontoMaquininha: r.desconto_maquininha ? Number(r.desconto_maquininha) : null,
+      taxaMaquininha: r.taxa_maquininha ? Number(r.taxa_maquininha) : null,
+      taxaAntecipacao: r.taxa_antecipacao ? Number(r.taxa_antecipacao) : null,
+      numParcelas: r.num_parcelas||null,
+      parcelas: r.parcelas||null
+    }));
+    appData.pagar = (pagar||[]).map(p => ({
+      id: p.id, forn: p.forn||'', desc: p.descricao||'', centro: p.centro||'fornecedores',
+      data: p.data||today(), venc: p.venc||today(), valor: Number(p.valor)||0,
+      doc: p.doc||'', obs: p.obs||'', status: p.status||'pendente',
+      barras: p.barras||''
+    }));
+    renderDashboard();
+    mostrarStatusDB('conectado');
+  } catch(e) {
+    console.error('Supabase error:', e);
+    mostrarStatusDB('erro', e.message);
+  }
+}
+
+function mostrarStatusDB(status, msg) {
+  const el = document.getElementById('db-status');
+  if (!el) return;
+  if (status==='conectado') {
+    el.innerHTML = '<i class="ti ti-cloud-check" style="color:var(--green)"></i> Dados salvos na nuvem';
+    el.style.color = 'var(--green-text)';
+  } else if (status==='salvando') {
+    el.innerHTML = '<i class="ti ti-cloud-upload" style="color:var(--amber)"></i> Salvando...';
+    el.style.color = 'var(--amber-text)';
+  } else {
+    el.innerHTML = '<i class="ti ti-cloud-off" style="color:var(--red)"></i> Erro: ' + (msg||'');
+    el.style.color = 'var(--red-text)';
+  }
+}
+
+async function salvarReceber(entry) {
+  mostrarStatusDB('salvando');
+  const row = {
+    cliente: entry.cliente, os: entry.os, descricao: entry.desc,
+    data: entry.data, venc: entry.venc, valor: entry.valor,
+    forma: entry.forma, status: entry.status, obs: entry.obs,
+    valor_liquido: entry.valorLiquido||null,
+    desconto_maquininha: entry.descontoMaquininha||null,
+    taxa_maquininha: entry.taxaMaquininha||null,
+    taxa_antecipacao: entry.taxaAntecipacao||null,
+    num_parcelas: entry.numParcelas||null,
+    parcelas: entry.parcelas||null
+  };
+  const res = await sbFetch('receber', 'POST', row);
+  entry.id = res[0].id;
+  mostrarStatusDB('conectado');
+}
+
+async function salvarPagar(entry) {
+  mostrarStatusDB('salvando');
+  const row = {
+    forn: entry.forn, descricao: entry.desc, centro: entry.centro,
+    data: entry.data, venc: entry.venc, valor: entry.valor,
+    doc: entry.doc, obs: entry.obs, status: entry.status,
+    barras: entry.barras||null
+  };
+  const res = await sbFetch('pagar', 'POST', row);
+  entry.id = res[0].id;
+  mostrarStatusDB('conectado');
+}
+
+async function atualizarStatus(tabela, id, status) {
+  mostrarStatusDB('salvando');
+  await sbFetch(`${tabela}?id=eq.${id}`, 'PATCH', { status });
+  mostrarStatusDB('conectado');
+}
+
+async function atualizarParcelas(id, parcelas, statusGeral) {
+  mostrarStatusDB('salvando');
+  await sbFetch(`receber?id=eq.${id}`, 'PATCH', { parcelas, status: statusGeral });
+  mostrarStatusDB('conectado');
+}
+
+async function deletarRegistro(tabela, id) {
+  mostrarStatusDB('salvando');
+  await sbFetch(`${tabela}?id=eq.${id}`, 'DELETE');
+  mostrarStatusDB('conectado');
+}
+
+async function atualizarRegistroReceber(id, dados) {
+  mostrarStatusDB('salvando');
+  await sbFetch(`receber?id=eq.${id}`, 'PATCH', {
+    cliente: dados.cliente, os: dados.os, descricao: dados.desc,
+    data: dados.data, venc: dados.venc, valor: dados.valor,
+    forma: dados.forma, obs: dados.obs
+  });
+  mostrarStatusDB('conectado');
+}
+
+async function atualizarRegistroPagar(id, dados) {
+  mostrarStatusDB('salvando');
+  await sbFetch(`pagar?id=eq.${id}`, 'PATCH', {
+    forn: dados.forn, descricao: dados.desc, centro: dados.centro,
+    data: dados.data, venc: dados.venc, valor: dados.valor,
+    doc: dados.doc, obs: dados.obs, barras: dados.barras||null
+  });
+  mostrarStatusDB('conectado');
+}
+</script>
+<script>
+// ============================================================
+// UTILITÁRIOS
+// ============================================================
+const fmt = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—';
+const today = () => new Date().toISOString().split('T')[0];
+const CC_NAMES = {fornecedores:'Fornecedores',salario:'Salário/Pessoal',impostos:'Impostos',fixas:'Despesas Fixas'};
+const CC_COLORS = {fornecedores:'#1D9E75',salario:'#185FA5',impostos:'#BA7517',fixas:'#8B5CF6'};
+
+// ============================================================
+// ESTADO
+// ============================================================
+let appData = {
+  receber: [
+    {id:1,cliente:'Auto Brasil Ltda',desc:'Revisão 30.000 km + Pastilhas de freio',os:'OS-0041',data:'2026-05-01',venc:'2026-05-30',valor:1850,forma:'PIX',status:'pendente',obs:''},
+    {id:2,cliente:'João Pereira',desc:'Troca de óleo + filtros',os:'OS-0042',data:'2026-05-05',venc:'2026-05-15',valor:320,forma:'Dinheiro',status:'recebido',obs:''},
+    {id:3,cliente:'Transportes Silva',desc:'Alinhamento + balanceamento (frota 3 veículos)',os:'OS-0043',data:'2026-04-20',venc:'2026-05-05',valor:780,forma:'Boleto',status:'vencido',obs:''},
+    {id:4,cliente:'Maria Santos',desc:'Troca de amortecedores dianteiros',os:'OS-0044',data:'2026-05-10',venc:'2026-05-25',valor:950,forma:'Cartão crédito',status:'pendente',obs:''},
+  ],
+  pagar: [
+    {id:1,forn:'AutoPeças Norte',desc:'Peças diversas — NF 12456',centro:'fornecedores',data:'2026-05-02',venc:'2026-05-20',valor:3200,doc:'NF-12456',status:'pendente',obs:''},
+    {id:2,forn:'Funcionários',desc:'Folha de pagamento — maio/2026',centro:'salario',data:'2026-05-01',venc:'2026-05-05',valor:8500,doc:'',status:'pago',obs:''},
+    {id:3,forn:'Receita Federal',desc:'DAS Simples Nacional — mai/2026',centro:'impostos',data:'2026-05-01',venc:'2026-05-20',valor:1240,doc:'DAS052026',status:'pendente',obs:''},
+    {id:4,forn:'Locadora Espaço',desc:'Aluguel galpão — maio/2026',centro:'fixas',data:'2026-05-01',venc:'2026-05-10',valor:4200,doc:'',status:'pago',obs:''},
+    {id:5,forn:'Lubrax Distribuidora',desc:'Óleo e lubrificantes — NF 9871',centro:'fornecedores',data:'2026-05-08',venc:'2026-05-28',valor:1650,doc:'NF-9871',status:'pendente',obs:''},
+    {id:6,forn:'CPFL Energia',desc:'Conta de luz — mai/2026',centro:'fixas',data:'2026-05-05',venc:'2026-05-15',valor:890,doc:'',status:'vencido',obs:''},
+    {id:7,forn:'Telefônica',desc:'Telefone + internet — mai/2026',centro:'fixas',data:'2026-05-01',venc:'2026-05-12',valor:380,doc:'',status:'pendente',obs:''},
+  ]
+};
+let aiData = {};
+let docTab = 'boleto';
+let ccFilter = 'fornecedores';
+let lcChart = null, ccChart = null;
+
+// ============================================================
+// NAVEGAÇÃO
+// ============================================================
+function showPanel(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  btn.classList.add('active');
+  if (id==='dashboard') renderDashboard();
+  if (id==='receber') renderReceber();
+  if (id==='pagar') renderPagar();
+  if (id==='livrocaixa') { setCurrentPeriod('lc-mes','lc-ano'); renderLC(); }
+  if (id==='custos') { setCurrentPeriod('cc-mes','cc-ano'); renderCC(); }
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function setCurrentPeriod(mesId, anoId) {
+  const now = new Date();
+  document.getElementById(mesId).value = now.getMonth();
+  document.getElementById(anoId).value = now.getFullYear();
+}
+
+// ============================================================
+// VERIFICAR VENCIDOS
+// ============================================================
+function checkVencidos() {
+  const td = today();
+  [...appData.receber, ...appData.pagar].forEach(item => {
+    if (item.status === 'pendente' && item.venc < td) item.status = 'vencido';
+  });
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function renderDashboard() {
+  checkVencidos();
+  const now = new Date();
+  const mes = now.getMonth(), ano = now.getFullYear();
+  const inP = d => { const dt = new Date(d+'T00:00:00'); return dt.getMonth()===mes && dt.getFullYear()===ano; };
+
+  const totR = appData.receber.filter(r=>inP(r.data)).reduce((s,r)=>s+r.valor,0);
+  const totP = appData.pagar.filter(p=>inP(p.data)).reduce((s,p)=>s+p.valor,0);
+  const saldo = totR - totP;
+  const vcds = appData.pagar.filter(p=>p.status==='vencido').length;
+
+  document.getElementById('m-receber').textContent = fmt(totR);
+  document.getElementById('m-pagar').textContent = fmt(totP);
+  const sm = document.getElementById('m-saldo');
+  sm.textContent = fmt(saldo);
+  sm.className = 'metric-value ' + (saldo >= 0 ? 'green' : 'red');
+  document.getElementById('m-vencidos').textContent = vcds;
+
+  // Próximos vencimentos
+  const td = today();
+  const proximos = appData.pagar.filter(p=>p.status==='pendente'&&p.venc>=td).sort((a,b)=>a.venc.localeCompare(b.venc)).slice(0,5);
+  const pv = document.getElementById('proximos-vctos');
+  if (!proximos.length) {
+    pv.innerHTML = '<div class="empty"><i class="ti ti-calendar-check"></i>Nenhum vencimento próximo.</div>';
+  } else {
+    pv.innerHTML = proximos.map(p=>`
+      <div class="vcto-item">
+        <div><div style="font-weight:500">${p.forn}</div><div style="font-size:12px;color:var(--text-secondary)">${p.desc.substring(0,45)}</div></div>
+        <div style="text-align:right"><div style="font-weight:600;color:var(--red)">${fmt(p.valor)}</div><div style="font-size:11px;color:var(--text-secondary)">${fmtDate(p.venc)}</div></div>
+      </div>`).join('');
+  }
+
+  // Centros de custo mini
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0};
+  appData.pagar.filter(p=>inP(p.data)).forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+p.valor);
+  const maxCC = Math.max(...Object.values(ccMap), 1);
+  document.getElementById('cc-mini').innerHTML = Object.entries(ccMap).map(([k,v])=>`
+    <div class="cc-row">
+      <div class="cc-name" style="font-size:12px">${CC_NAMES[k]}</div>
+      <div class="cc-bar-wrap"><div class="cc-bar" style="width:${Math.round(v/maxCC*100)}%;background:${CC_COLORS[k]}"></div></div>
+      <div class="cc-val" style="font-size:12px;color:${CC_COLORS[k]}">${fmt(v)}</div>
+    </div>`).join('');
+
+  // Últimos lançamentos
+  const all = [
+    ...appData.receber.map(r=>({...r,tipo:'receber'})),
+    ...appData.pagar.map(p=>({...p,tipo:'pagar'}))
+  ].sort((a,b)=>b.data.localeCompare(a.data));
+
+  const tb = document.getElementById('tbody-recentes');
+  if (!all.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">Nenhum lançamento</td></tr>'; return; }
+  tb.innerHTML = all.slice(0,10).map(r=>`
+    <tr>
+      <td>${fmtDate(r.data)}</td>
+      <td>${(r.tipo==='receber'?(r.cliente+' — '+r.desc):(r.forn+' — '+r.desc)).substring(0,50)}</td>
+      <td><span class="badge ${r.tipo==='receber'?'os':'pendente'}" style="${r.tipo==='pagar'?'background:var(--red-light);color:var(--red-text)':''}">${r.tipo==='receber'?'Receber':'Pagar'}</span></td>
+      <td>${r.tipo==='pagar'?(CC_NAMES[r.centro]||'—'):'—'}</td>
+      <td style="font-weight:600;color:${r.tipo==='receber'?'var(--green)':'var(--red)'}">${fmt(r.valor)}</td>
+      <td><span class="badge ${r.status}">${r.status}</span></td>
+    </tr>`).join('');
+}
+
+// ============================================================
+// CONTAS A RECEBER
+// ============================================================
+const FORMA_LABELS = {pix:'PIX',dinheiro:'Dinheiro',debito:'Débito D+1',credito:'Crédito (antecip.)',boleto:'Boleto',transferencia:'Transferência'};
+
+function toggleFormaReceber() {
+  const forma = document.getElementById('r-forma').value;
+  document.getElementById('r-bloco-simples').style.display = ['pix','dinheiro','transferencia'].includes(forma) ? 'block' : 'none';
+  document.getElementById('r-bloco-debito').style.display = forma==='debito' ? 'block' : 'none';
+  document.getElementById('r-bloco-credito').style.display = forma==='credito' ? 'block' : 'none';
+  document.getElementById('r-bloco-boleto').style.display = forma==='boleto' ? 'block' : 'none';
+  if (forma==='boleto') gerarCamposBoleto();
+  atualizarResumoReceber();
+}
+
+function atualizarResumoReceber() {
+  const valor = parseFloat(document.getElementById('r-valor').value) || 0;
+  const forma = document.getElementById('r-forma').value;
+  if (forma==='debito') {
+    const taxa = parseFloat(document.getElementById('r-debito-taxa').value) || 0;
+    const liquido = valor * (1 - taxa/100);
+    document.getElementById('r-debito-liquido').value = 'R$ ' + liquido.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  if (forma==='credito') {
+    const parcelas = parseInt(document.getElementById('r-credito-parcelas').value) || 1;
+    const taxa = parseFloat(document.getElementById('r-credito-taxa').value) || 0;
+    const antecip = parseFloat(document.getElementById('r-credito-antecip').value) || 0;
+    if (valor > 0) {
+      const descParc = valor * (taxa/100) * parcelas;
+      const descAntecip = valor * (antecip/100);
+      const liquido = valor - descParc - descAntecip;
+      document.getElementById('r-credito-resumo').style.display = 'block';
+      document.getElementById('r-cr-bruto').textContent = fmt(valor);
+      document.getElementById('r-cr-desc-parc').textContent = '- ' + fmt(descParc);
+      document.getElementById('r-cr-desc-antecip').textContent = '- ' + fmt(descAntecip);
+      document.getElementById('r-cr-liquido').textContent = fmt(liquido);
+    }
+  }
+}
+
+function gerarCamposBoleto() {
+  const n = parseInt(document.getElementById('r-boleto-parcelas').value) || 1;
+  const valor = parseFloat(document.getElementById('r-valor').value) || 0;
+  const vlrPadr = n > 0 ? (valor/n).toFixed(2) : 0;
+  let html = '';
+  for (let i=1; i<=n; i++) {
+    html += `<div class="form-row three" style="margin-bottom:6px">
+      <div class="form-group"><label>Parcela ${i} — Prazo (dias)</label><input type="number" id="r-bol-dias-${i}" placeholder="${i*30}" value="${i*30}" min="1"></div>
+      <div class="form-group"><label>Valor (R$)</label><input type="number" id="r-bol-valor-${i}" value="${vlrPadr}" step="0.01" min="0"></div>
+      <div class="form-group"><label>Vencimento</label><input type="date" id="r-bol-venc-${i}"></div>
+    </div>`;
+  }
+  document.getElementById('r-boleto-campos').innerHTML = html;
+  // auto-preenche datas baseado nos dias
+  const dataBase = document.getElementById('r-data').value || today();
+  for (let i=1; i<=n; i++) {
+    const dt = new Date(dataBase+'T00:00:00');
+    dt.setDate(dt.getDate() + (parseInt(document.getElementById(`r-bol-dias-${i}`).value)||30));
+    document.getElementById(`r-bol-venc-${i}`).value = dt.toISOString().split('T')[0];
+    document.getElementById(`r-bol-dias-${i}`).addEventListener('input', function() {
+      const d2 = new Date(dataBase+'T00:00:00');
+      d2.setDate(d2.getDate() + (parseInt(this.value)||30));
+      document.getElementById(`r-bol-venc-${i}`).value = d2.toISOString().split('T')[0];
+    });
+  }
+}
+
+function abrirBaixaReceber(id) {
+  const r = appData.receber.find(x=>x.id===id);
+  if (!r) return;
+  const info = document.getElementById('baixa-info');
+  info.innerHTML = `<strong>${r.cliente}</strong> — ${r.desc}<br>
+    <span style="font-size:12px;color:var(--text-secondary)">${r.os} | ${FORMA_LABELS[r.forma]||r.forma}</span>`;
+  const campos = document.getElementById('baixa-campos');
+
+  if (r.forma==='boleto' && r.parcelas && r.parcelas.length > 0) {
+    const pendentes = r.parcelas.filter(p=>p.status!=='recebido');
+    if (!pendentes.length) { alert('Todas as parcelas já foram baixadas.'); return; }
+    let html = '<p style="font-size:13px;font-weight:600;margin-bottom:10px">Selecione as parcelas recebidas:</p>';
+    r.parcelas.forEach((p,i) => {
+      html += `<div style="display:flex;align-items:center;gap:10px;padding:8px;background:${p.status==='recebido'?'var(--green-light)':(new Date(p.venc+'T00:00:00')<new Date()?'var(--red-light)':"var(--bg-secondary)")};border-radius:var(--radius-md);margin-bottom:6px;font-size:13px">
+        <input type="checkbox" id="parc-check-${i}" ${p.status==='recebido'?'disabled checked':''}  style="width:16px;height:16px;accent-color:var(--green)">
+        <label for="parc-check-${i}" style="flex:1;cursor:pointer">Parcela ${i+1} — ${fmt(p.valor)} — venc. ${fmtDate(p.venc)}</label>
+        <span class="badge ${p.status==='recebido'?'recebido':(new Date(p.venc+'T00:00:00')<new Date()?'vencido':'pendente')}">${p.status==='recebido'?'recebido':(new Date(p.venc+'T00:00:00')<new Date()?'vencido':'pendente')}</span>
+      </div>`;
+    });
+    html += '<div class="form-row" style="margin-top:12px"><div class="form-group"><label>Data do recebimento</label><input type="date" id="baixa-data" value="'+today()+'"></div></div>';
+    campos.innerHTML = html;
+    document.getElementById('btn-confirmar-baixa').onclick = () => {
+      let alguma = false;
+      r.parcelas.forEach((p,i) => {
+        const cb = document.getElementById(`parc-check-${i}`);
+        if (cb && cb.checked && p.status!=='recebido') { p.status='recebido'; p.dataRecebimento=document.getElementById('baixa-data').value||today(); alguma=true; }
+      });
+      if (r.parcelas.every(p=>p.status==='recebido')) r.status='recebido';
+      if (alguma) { atualizarParcelas(r.id, r.parcelas, r.status).catch(e=>console.error(e)); closeModal('modal-baixa-receber'); renderReceber(); renderDashboard(); }
+      else alert('Selecione ao menos uma parcela.');
+    };
+  } else if (['debito','credito'].includes(r.forma)) {
+    campos.innerHTML = `
+      <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px;margin-bottom:12px;font-size:13px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Valor bruto:</span><span style="font-weight:600">${fmt(r.valor)}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Desconto maquininha:</span><span style="color:var(--red);font-weight:600">- ${fmt(r.descontoMaquininha||0)}</span></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:6px;margin-top:4px"><span style="font-weight:600">Líquido na conta:</span><span style="font-weight:700;color:var(--green);font-size:15px">${fmt(r.valorLiquido||r.valor)}</span></div>
+      </div>
+      <div class="form-row"><div class="form-group"><label>Data da compensação (D+1)</label><input type="date" id="baixa-data" value="${today()}"></div></div>`;
+    document.getElementById('btn-confirmar-baixa').onclick = () => {
+      r.status='recebido'; r.dataRecebimento=document.getElementById('baixa-data').value||today();
+      atualizarStatus('receber', r.id, 'recebido').catch(e=>console.error(e));
+      closeModal('modal-baixa-receber'); renderReceber(); renderDashboard();
+    };
+  } else {
+    campos.innerHTML = `<div class="form-row"><div class="form-group"><label>Data do recebimento</label><input type="date" id="baixa-data" value="${today()}"></div><div class="form-group"><label>Valor recebido (R$)</label><input type="number" id="baixa-valor" value="${r.valor}" step="0.01"></div></div>`;
+    document.getElementById('btn-confirmar-baixa').onclick = () => {
+      r.status='recebido'; r.dataRecebimento=document.getElementById('baixa-data').value||today();
+      r.valorRecebido=parseFloat(document.getElementById('baixa-valor').value)||r.valor;
+      atualizarStatus('receber', r.id, 'recebido').catch(e=>console.error(e));
+      closeModal('modal-baixa-receber'); renderReceber(); renderDashboard();
+    };
+  }
+  openModal('modal-baixa-receber');
+}
+
+function renderReceber() {
+  const filtro = document.getElementById('filtro-receber').value;
+  let items = filtro ? appData.receber.filter(r=>r.status===filtro) : appData.receber;
+  const tb = document.getElementById('tbody-receber');
+  if (!items.length) { tb.innerHTML = '<tr><td colspan="8" class="empty"><i class="ti ti-inbox"></i><br>Nenhum registro encontrado</td></tr>'; return; }
+  tb.innerHTML = items.map(r => {
+    const temParcelas = r.parcelas && r.parcelas.length > 0;
+    const parcsRecebidas = temParcelas ? r.parcelas.filter(p=>p.status==='recebido').length : 0;
+    const totalParcs = temParcelas ? r.parcelas.length : 0;
+    const vencDisplay = temParcelas
+      ? `${parcsRecebidas}/${totalParcs} parc.`
+      : fmtDate(r.venc);
+    const valorDisplay = temParcelas
+      ? `<span style="font-size:11px;color:var(--text-secondary)">${parcsRecebidas}/${totalParcs} recebidas</span><br>${fmt(r.valor)}`
+      : fmt(r.valor);
+    const liquido = r.valorLiquido ? `<br><span style="font-size:11px;color:var(--text-secondary)">Líq: ${fmt(r.valorLiquido)}</span>` : '';
+    return `<tr>
+      <td>${fmtDate(r.data)}</td>
+      <td><strong>${r.cliente}</strong></td>
+      <td>${r.desc}<br><span style="font-size:11px;color:var(--text-secondary)">${r.os}</span></td>
+      <td>${vencDisplay}</td>
+      <td><span style="font-size:12px">${FORMA_LABELS[r.forma]||r.forma}</span></td>
+      <td style="font-weight:600;color:var(--green)">${valorDisplay}${liquido}</td>
+      <td><span class="badge ${r.status}">${r.status}</span></td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        ${r.status!=='recebido'?`<button class="btn sm primary" onclick="abrirBaixaReceber(${r.id})"><i class="ti ti-check"></i> Baixar</button>`:''}
+        <button class="btn sm" onclick="editarReceber(${r.id})" title="Editar"><i class="ti ti-pencil"></i></button>
+        <button class="btn sm danger" onclick="excluir('receber',${r.id})"><i class="ti ti-trash"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================================
+// CONTAS A PAGAR
+// ============================================================
+function renderPagar() {
+  const filtro = document.getElementById('filtro-pagar').value;
+  const centro = document.getElementById('filtro-centro').value;
+  let items = appData.pagar;
+  if (filtro) items = items.filter(p=>p.status===filtro);
+  if (centro) items = items.filter(p=>p.centro===centro);
+  const tb = document.getElementById('tbody-pagar');
+  if (!items.length) { tb.innerHTML = '<tr><td colspan="8" class="empty"><i class="ti ti-inbox"></i><br>Nenhum registro encontrado</td></tr>'; return; }
+  tb.innerHTML = items.map(p=>`
+    <tr>
+      <td>${fmtDate(p.data)}</td>
+      <td><strong>${p.forn}</strong><br><span style="font-size:11px;color:var(--text-secondary)">${p.desc}</span></td>
+      <td><span class="badge ${p.centro}">${CC_NAMES[p.centro]||p.centro}</span></td>
+      <td>${fmtDate(p.venc)}</td>
+      <td style="font-size:12px;color:var(--text-secondary)">
+        ${p.doc||'—'}
+        ${p.barras?`<br><span style="font-size:10px;color:var(--text-hint);font-family:monospace;cursor:pointer" onclick="copiarBarras('${p.barras}')" title="Clique para copiar o código de barras"><i class="ti ti-barcode" style="font-size:11px"></i> ${p.barras.substring(0,20)}...</span>`:''}
+      </td>
+      <td style="font-weight:600;color:var(--red)">${fmt(p.valor)}</td>
+      <td><span class="badge ${p.status}">${p.status}</span></td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        ${p.status!=='pago'?`<button class="btn sm primary" onclick="confirmarLiquidacao('pagar',${p.id})"><i class="ti ti-check"></i> Pagar</button>`:''}
+        <button class="btn sm" onclick="editarPagar(${p.id})" title="Editar"><i class="ti ti-pencil"></i></button>
+        <button class="btn sm danger" onclick="excluir('pagar',${p.id})"><i class="ti ti-trash"></i></button>
+      </td>
+    </tr>`).join('');
+}
+
+// ============================================================
+// CONFIRMAR LIQUIDAÇÃO
+// ============================================================
+function confirmarLiquidacao(tipo, id) {
+  if (tipo==='receber') { abrirBaixaReceber(id); return; }
+  const item = appData.pagar.find(x=>x.id===id);
+  if (!item) return;
+  document.getElementById('confirm-title').innerHTML = '<i class="ti ti-check-circle" style="color:var(--green)"></i> Confirmar pagamento';
+  document.getElementById('confirm-text').textContent = `${item.forn} — ${item.desc} | ${fmt(item.valor)}`;
+  document.getElementById('confirm-date').value = today();
+  document.getElementById('confirm-valor').value = item.valor;
+  document.getElementById('confirm-btn').onclick = () => {
+    item.status = 'pago';
+    atualizarStatus('pagar', item.id, 'pago').catch(e=>console.error(e));
+    closeModal('modal-confirm');
+    renderPagar();
+    renderDashboard();
+  };
+  openModal('modal-confirm');
+}
+
+function copiarBarras(codigo) {
+  navigator.clipboard.writeText(codigo).then(()=>{
+    alert('Código de barras copiado!\n\n' + codigo);
+  }).catch(()=>{
+    prompt('Copie o código de barras abaixo:', codigo);
+  });
+}
+
+function excluir(tipo, id) {
+  if (!confirm('Excluir este lançamento? Esta ação não pode ser desfeita.')) return;
+  appData[tipo] = appData[tipo].filter(x=>x.id!==id);
+  deletarRegistro(tipo, id).catch(e=>alert('Erro ao excluir: '+e.message));
+  tipo==='receber' ? renderReceber() : renderPagar();
+  renderDashboard();
+}
+
+// ============================================================
+// ADICIONAR LANÇAMENTOS
+// ============================================================
+function addReceber() {
+  const cliente = document.getElementById('r-cliente').value.trim();
+  const desc = document.getElementById('r-desc').value.trim();
+  if (!cliente || !desc) { alert('Preencha ao menos o cliente e a descrição.'); return; }
+  const id = appData.receber.length ? Math.max(...appData.receber.map(r=>r.id))+1 : 1;
+  const forma = document.getElementById('r-forma').value;
+  const valor = parseFloat(document.getElementById('r-valor').value) || 0;
+  const data = document.getElementById('r-data').value || today();
+  let entry = { id, cliente, desc, os: document.getElementById('r-os').value || 'OS-???', data, valor, forma, obs: document.getElementById('r-obs').value, status: 'pendente' };
+
+  if (['pix','dinheiro','transferencia'].includes(forma)) {
+    entry.venc = document.getElementById('r-venc-simples').value || today();
+
+  } else if (forma==='debito') {
+    const taxa = parseFloat(document.getElementById('r-debito-taxa').value) || 0;
+    const liquido = valor * (1 - taxa/100);
+    entry.taxaMaquininha = taxa;
+    entry.descontoMaquininha = valor - liquido;
+    entry.valorLiquido = liquido;
+    const dtVenda = document.getElementById('r-debito-data-venda').value || data;
+    const dtComp = new Date(dtVenda+'T00:00:00'); dtComp.setDate(dtComp.getDate()+1);
+    entry.venc = dtComp.toISOString().split('T')[0];
+
+  } else if (forma==='credito') {
+    const parcelas = parseInt(document.getElementById('r-credito-parcelas').value) || 1;
+    const taxa = parseFloat(document.getElementById('r-credito-taxa').value) || 0;
+    const antecip = parseFloat(document.getElementById('r-credito-antecip').value) || 0;
+    const descParc = valor * (taxa/100) * parcelas;
+    const descAntecip = valor * (antecip/100);
+    entry.taxaMaquininha = taxa;
+    entry.taxaAntecipacao = antecip;
+    entry.descontoMaquininha = descParc + descAntecip;
+    entry.valorLiquido = valor - descParc - descAntecip;
+    entry.numParcelas = parcelas;
+    const dtComp = new Date(data+'T00:00:00'); dtComp.setDate(dtComp.getDate()+1);
+    entry.venc = dtComp.toISOString().split('T')[0];
+
+  } else if (forma==='boleto') {
+    const n = parseInt(document.getElementById('r-boleto-parcelas').value) || 1;
+    entry.parcelas = [];
+    for (let i=1; i<=n; i++) {
+      entry.parcelas.push({
+        num: i,
+        valor: parseFloat(document.getElementById(`r-bol-valor-${i}`).value) || 0,
+        venc: document.getElementById(`r-bol-venc-${i}`).value || today(),
+        status: 'pendente'
+      });
+    }
+    entry.venc = entry.parcelas[0]?.venc || today();
+  }
+
+  appData.receber.push(entry);
+  salvarReceber(entry).catch(e=>alert('Erro ao salvar: '+e.message));
+  ['r-cliente','r-os','r-desc','r-data','r-valor','r-obs','r-venc-simples'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  closeModal('modal-add-receber');
+  renderReceber(); renderDashboard();
+}
+
+function addPagar(overrides={}) {
+  const forn = (overrides.forn || document.getElementById('p-forn').value || '').trim();
+  const desc = (overrides.desc || document.getElementById('p-desc').value || '').trim();
+  if (!forn || !desc) { alert('Preencha ao menos o fornecedor e a descrição.'); return; }
+  const id = appData.pagar.length ? Math.max(...appData.pagar.map(p=>p.id))+1 : 1;
+  appData.pagar.push({
+    id, forn, desc,
+    centro: overrides.centro || document.getElementById('p-centro').value,
+    data: overrides.data || document.getElementById('p-data').value || today(),
+    venc: overrides.venc || document.getElementById('p-venc').value || today(),
+    valor: overrides.valor || parseFloat(document.getElementById('p-valor').value) || 0,
+    doc: overrides.doc || document.getElementById('p-doc').value || '',
+    barras: ov.barras || document.getElementById('p-barras')?.value || '',
+    obs: overrides.obs || document.getElementById('p-obs').value || '',
+    status: 'pendente'
+  });
+  salvarPagar(entry).catch(e=>alert('Erro ao salvar: '+e.message));
+  ['p-forn','p-desc','p-data','p-venc','p-valor','p-doc','p-obs','p-barras'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  closeModal('modal-add-pagar');
+  renderPagar(); renderDashboard();
+}
+
+// ============================================================
+// LIVRO CAIXA
+// ============================================================
+function renderLC() {
+  const mes = parseInt(document.getElementById('lc-mes').value);
+  const ano = parseInt(document.getElementById('lc-ano').value);
+  const inP = d => { const dt = new Date(d+'T00:00:00'); return dt.getMonth()===mes && dt.getFullYear()===ano; };
+
+  const entradas = appData.receber.filter(r=>r.status==='recebido'&&inP(r.data));
+  const saidas = appData.pagar.filter(p=>p.status==='pago'&&inP(p.data));
+  const totE = entradas.reduce((s,r)=>s+r.valor,0);
+  const totS = saidas.reduce((s,p)=>s+p.valor,0);
+  const saldo = totE - totS;
+
+  document.getElementById('lc-metrics').innerHTML = `
+    <div class="metric-card"><div class="metric-label">Total de Entradas</div><div class="metric-value green">${fmt(totE)}</div></div>
+    <div class="metric-card"><div class="metric-label">Total de Saídas</div><div class="metric-value red">${fmt(totS)}</div></div>
+    <div class="metric-card"><div class="metric-label">Resultado Líquido</div><div class="metric-value ${saldo>=0?'green':'red'}">${fmt(saldo)}</div></div>`;
+
+  const all = [
+    ...entradas.map(r=>({data:r.data,desc:r.cliente+' — '+r.desc,tipo:'E',valor:r.valor})),
+    ...saidas.map(p=>({data:p.data,desc:p.forn+' — '+p.desc,tipo:'S',valor:p.valor}))
+  ].sort((a,b)=>a.data.localeCompare(b.data));
+
+  if (!all.length) {
+    document.getElementById('lc-list').innerHTML = '<div class="empty"><i class="ti ti-notebook-off"></i>Nenhuma movimentação liquidada neste período.</div>';
+  } else {
+    let saldoAcc = 0;
+    document.getElementById('lc-list').innerHTML = all.map(item => {
+      saldoAcc += item.tipo==='E' ? item.valor : -item.valor;
+      return `<div class="lc-entry">
+        <span class="lc-date">${fmtDate(item.data)}</span>
+        <span>${item.desc.substring(0,60)}</span>
+        <span class="${item.tipo==='E'?'lc-e':'lc-s'}">${item.tipo==='E'?'+ ':'- '}${fmt(item.valor)}</span>
+        <span style="font-size:13px;font-weight:600;color:${saldoAcc>=0?'var(--green)':'var(--red)'}">= ${fmt(saldoAcc)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // CC Resumo
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0};
+  saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+p.valor);
+  document.getElementById('lc-cc-resumo').innerHTML = Object.entries(ccMap).map(([k,v])=>`
+    <div class="cc-row">
+      <div class="cc-name">${CC_NAMES[k]}</div>
+      <div class="cc-bar-wrap"><div class="cc-bar" style="width:${totS>0?Math.round(v/totS*100):0}%;background:${CC_COLORS[k]}"></div></div>
+      <div class="cc-val" style="color:${CC_COLORS[k]}">${fmt(v)}</div>
+      <div class="cc-pct">${totS>0?Math.round(v/totS*100):0}%</div>
+    </div>`).join('');
+
+  // Gráfico
+  if (lcChart) lcChart.destroy();
+  lcChart = new Chart(document.getElementById('chart-lc'), {
+    type: 'bar',
+    data: {
+      labels: ['Entradas','Saídas','Resultado'],
+      datasets:[{
+        data: [totE, totS, Math.abs(saldo)],
+        backgroundColor: ['#1D9E75','#E24B4A', saldo>=0?'#185FA5':'#BA7517'],
+        borderRadius: 8, borderSkipped: false
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{y:{ticks:{callback:v=>'R$ '+v.toLocaleString('pt-BR')},grid:{color:'rgba(0,0,0,0.05)'}}}
+    }
+  });
+}
+
+function printLC() {
+  const mes = parseInt(document.getElementById('lc-mes').value);
+  const ano = parseInt(document.getElementById('lc-ano').value);
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const inP = d => { const dt = new Date(d+'T00:00:00'); return dt.getMonth()===mes && dt.getFullYear()===ano; };
+  const entradas = appData.receber.filter(r=>r.status==='recebido'&&inP(r.data));
+  const saidas = appData.pagar.filter(p=>p.status==='pago'&&inP(p.data));
+  const totE = entradas.reduce((s,r)=>s+r.valor,0);
+  const totS = saidas.reduce((s,p)=>s+p.valor,0);
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0};
+  saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+p.valor);
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Livro Caixa — ${meses[mes]}/${ano}</title>
+  <style>body{font-family:Arial,sans-serif;padding:30px;color:#222;font-size:13px}h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;margin:20px 0 8px;color:#333}
+  table{width:100%;border-collapse:collapse;margin-bottom:16px}th{background:#f0f0f0;padding:8px;text-align:left;font-size:12px}td{padding:7px 8px;border-bottom:1px solid #eee}
+  .e{color:#1D9E75;font-weight:bold}.s{color:#E24B4A;font-weight:bold}.total{font-weight:bold;background:#f9f9f9}
+  .sub{font-size:12px;color:#666}</style></head><body>
+  <h1>Livro Caixa — ${meses[mes]}/${ano}</h1><p class="sub">Emitido em: ${new Date().toLocaleDateString('pt-BR')}</p>
+  <h2>Resumo</h2>
+  <table><tr><th>Item</th><th>Valor</th></tr>
+  <tr><td>Total de Entradas</td><td class="e">${fmt(totE)}</td></tr>
+  <tr><td>Total de Saídas</td><td class="s">${fmt(totS)}</td></tr>
+  <tr class="total"><td>Resultado Líquido</td><td style="color:${totE-totS>=0?'#1D9E75':'#E24B4A'};font-weight:bold">${fmt(totE-totS)}</td></tr></table>
+  <h2>Despesas por Centro de Custo</h2>
+  <table><tr><th>Centro</th><th>Valor</th><th>%</th></tr>
+  ${Object.entries(ccMap).map(([k,v])=>`<tr><td>${CC_NAMES[k]}</td><td>${fmt(v)}</td><td>${totS>0?Math.round(v/totS*100):0}%</td></tr>`).join('')}</table>
+  <h2>Entradas</h2><table><tr><th>Data</th><th>Cliente</th><th>Descrição</th><th>Valor</th></tr>
+  ${entradas.map(r=>`<tr><td>${fmtDate(r.data)}</td><td>${r.cliente}</td><td>${r.desc}</td><td class="e">${fmt(r.valor)}</td></tr>`).join('')||'<tr><td colspan="4">Nenhuma</td></tr>'}</table>
+  <h2>Saídas</h2><table><tr><th>Data</th><th>Fornecedor</th><th>Descrição</th><th>Centro</th><th>Valor</th></tr>
+  ${saidas.map(p=>`<tr><td>${fmtDate(p.data)}</td><td>${p.forn}</td><td>${p.desc}</td><td>${CC_NAMES[p.centro]}</td><td class="s">${fmt(p.valor)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma</td></tr>'}</table>
+  </body></html>`;
+  const w = window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  w.print();
+}
+
+// ============================================================
+// CENTROS DE CUSTO
+// ============================================================
+function renderCC() {
+  const mes = parseInt(document.getElementById('cc-mes').value);
+  const ano = parseInt(document.getElementById('cc-ano').value);
+  const inP = d => { const dt = new Date(d+'T00:00:00'); return dt.getMonth()===mes && dt.getFullYear()===ano; };
+  const saidas = appData.pagar.filter(p=>inP(p.data));
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0};
+  saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+p.valor);
+  const total = Object.values(ccMap).reduce((s,v)=>s+v,0);
+
+  document.getElementById('cc-detalhe').innerHTML = Object.entries(ccMap).map(([k,v])=>`
+    <div class="cc-row">
+      <div class="cc-name">${CC_NAMES[k]}</div>
+      <div class="cc-bar-wrap"><div class="cc-bar" style="width:${total>0?Math.round(v/total*100):0}%;background:${CC_COLORS[k]}"></div></div>
+      <div class="cc-val" style="color:${CC_COLORS[k]}">${fmt(v)}</div>
+      <div class="cc-pct">${total>0?Math.round(v/total*100):0}%</div>
+    </div>`).join('');
+
+  if (ccChart) ccChart.destroy();
+  ccChart = new Chart(document.getElementById('chart-cc'), {
+    type:'doughnut',
+    data:{
+      labels: Object.keys(ccMap).map(k=>CC_NAMES[k]),
+      datasets:[{data:Object.values(ccMap), backgroundColor:Object.values(CC_COLORS), borderWidth:3, borderColor:'#fff', hoverOffset:6}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{padding:14,font:{size:12}}}}}
+  });
+  filtrarCC(ccFilter);
+}
+
+function filtrarCC(centro, btn) {
+  ccFilter = centro;
+  if (btn) {
+    document.querySelectorAll('#panel-custos .tab-inner button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  const mes = parseInt(document.getElementById('cc-mes').value);
+  const ano = parseInt(document.getElementById('cc-ano').value);
+  const inP = d => { const dt = new Date(d+'T00:00:00'); return dt.getMonth()===mes && dt.getFullYear()===ano; };
+  const items = appData.pagar.filter(p=>inP(p.data)&&p.centro===centro);
+  const tb = document.getElementById('tbody-cc-det');
+  if (!items.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">Nenhum lançamento neste centro.</td></tr>'; return; }
+  tb.innerHTML = items.map(p=>`
+    <tr>
+      <td>${fmtDate(p.data)}</td>
+      <td><strong>${p.forn}</strong></td>
+      <td>${p.desc}</td>
+      <td>${fmtDate(p.venc)}</td>
+      <td style="font-weight:600;color:var(--red)">${fmt(p.valor)}</td>
+      <td><span class="badge ${p.status}">${p.status}</span></td>
+    </tr>`).join('');
+}
+
+// ============================================================
+// DOCUMENTOS — IA
+// ============================================================
+function setDocTab(tab, btn) {
+  docTab = tab;
+  document.querySelectorAll('#panel-documentos .tab-inner button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function handleFile(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  document.getElementById('file-preview-area').innerHTML = `
+    <div class="file-preview">
+      <i class="ti ti-file-description"></i>
+      <span><strong>${file.name}</strong><br><span style="font-size:12px;color:var(--text-secondary)">${(file.size/1024).toFixed(0)} KB — ${file.type||'arquivo'}</span></span>
+    </div>`;
+  analyzeWithAI(file);
+}
+
+// Drag & drop
+document.addEventListener('DOMContentLoaded', () => {
+  const dz = document.getElementById('drop-zone');
+  if (!dz) return;
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.background='var(--bg-secondary)'; });
+  dz.addEventListener('dragleave', () => dz.style.background='');
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.style.background='';
+    const f = e.dataTransfer.files[0];
+    if (f) { const fi = document.getElementById('file-input'); fi.files = e.dataTransfer.files; handleFile(fi); }
+  });
+
+  // Restaurar API key salva
+  const savedKey = localStorage.getItem('openai_api_key');
+  if (savedKey) {
+    document.getElementById('api-key-input').value = savedKey;
+    document.getElementById('api-key-status').innerHTML = '<i class="ti ti-check" style="color:var(--green)"></i> Chave carregada.';
+  }
+
+  // Init
+  setCurrentPeriod('lc-mes','lc-ano');
+  setCurrentPeriod('cc-mes','cc-ano');
+  renderDashboard();
+});
+
+function saveApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) { alert('Insira uma chave válida.'); return; }
+  localStorage.setItem('openai_api_key', key);
+  document.getElementById('api-key-status').innerHTML = '<i class="ti ti-check" style="color:var(--green)"></i> Chave salva com sucesso!';
+}
+function clearApiKey() {
+  localStorage.removeItem('openai_api_key');
+  document.getElementById('api-key-input').value = '';
+  document.getElementById('api-key-status').textContent = 'Chave removida.';
+}
+function getApiKey() { return localStorage.getItem('openai_api_key') || ''; }
+
+async function analyzeWithAI(file) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('Configure sua chave de API da OpenAI na aba "Ler Documentos (IA)" antes de usar esta função.');
+    return;
+  }
+  const resultArea = document.getElementById('ai-result-area');
+  const resultText = document.getElementById('ai-result-text');
+  resultArea.style.display = 'block';
+  resultText.innerHTML = '<span class="spinner"></span> Analisando documento com IA (ChatGPT)...';
+  document.getElementById('ai-form-area').innerHTML = '';
+
+  const tipo = docTab === 'boleto' ? 'boleto bancário ou nota fiscal de compra' : 'ordem de serviço de oficina mecânica';
+  const prompt = `Você é um especialista contábil para oficinas mecânicas. Analise este documento (${tipo}) e extraia os dados em JSON válido sem markdown:\n{"fornecedor":"","descricao":"","valor":0,"data_emissao":"YYYY-MM-DD","data_vencimento":"YYYY-MM-DD","numero_documento":"","codigo_barras":"","centro_custo":"fornecedores","tipo":"pagar","observacoes":"","cliente":"","os":""}\ncentro_custo: fornecedores | salario | impostos | fixas\ntipo: "pagar" para boleto/NF, "receber" para OS\nPara codigo_barras extraia a linha digitavel completa ou codigo de barras numerico do boleto. Se nao encontrar deixe vazio.\\nRetorne SOMENTE o JSON.`;
+
+  try {
+    const isPDF = file.type === 'application/pdf';
+    const isImage = file.type.startsWith('image/');
+    let msgContent;
+
+    if (isPDF) {
+      // PDF via base64 — funciona sem servidor (file://)
+      resultText.innerHTML = '<span class="spinner"></span> Lendo PDF com IA...';
+      const base64 = await fileToBase64(file);
+      msgContent = [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:application/pdf;base64,${base64}` } }
+      ];
+    } else if (isImage) {
+      const base64 = await fileToBase64(file);
+      msgContent = [
+        { type: 'image_url', image_url: { url: `data:${file.type};base64,${base64}` } },
+        { type: 'text', text: prompt }
+      ];
+    } else {
+      throw new Error('Formato não suportado. Use JPG, PNG ou PDF.');
+    }
+
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: msgContent }]
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error?.message || 'Erro na API OpenAI');
+    }
+
+    const d = await resp.json();
+    const txt = (d.choices?.[0]?.message?.content || '').replace(/```json|```/g,'').trim();
+    try {
+      aiData = JSON.parse(txt);
+      showAIResult(aiData);
+    } catch(e) {
+      resultText.innerHTML = `<span style="color:var(--red-text)"><i class="ti ti-alert-triangle"></i> Não foi possível extrair os dados automaticamente. Verifique a qualidade do documento ou insira manualmente.</span><br><small style="color:var(--text-secondary)">Resposta raw: ${txt.substring(0,200)}</small>`;
+    }
+  } catch(e) {
+    resultText.innerHTML = `<span style="color:var(--red-text)"><i class="ti ti-alert-triangle"></i> Erro: ${e.message}</span>`;
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(r.result.split(',')[1]);
+    r.onerror = ()=>rej(new Error('Erro ao ler arquivo'));
+    r.readAsDataURL(file);
+  });
+}
+
+function showAIResult(d) {
+  const rt = document.getElementById('ai-result-text');
+  const tipo = d.tipo==='receber' ? '⬇ Conta a RECEBER (Ordem de Serviço)' : '⬆ Conta a PAGAR (Boleto / Nota Fiscal)';
+  rt.innerHTML = `<strong>${tipo}</strong>
+    <table style="margin-top:10px;width:100%;font-size:13px;border-collapse:collapse">
+      <tr><td style="padding:4px 0;color:var(--text-secondary);width:140px">Fornecedor/Cliente:</td><td style="font-weight:600">${d.fornecedor||d.cliente||'—'}</td></tr>
+      <tr><td style="padding:4px 0;color:var(--text-secondary)">Descrição:</td><td>${d.descricao||'—'}</td></tr>
+      <tr><td style="padding:4px 0;color:var(--text-secondary)">Valor:</td><td style="font-weight:700;color:${d.tipo==='receber'?'var(--green)':'var(--red)'};font-size:16px">${fmt(d.valor)}</td></tr>
+      <tr><td style="padding:4px 0;color:var(--text-secondary)">Emissão:</td><td>${fmtDate(d.data_emissao)}</td></tr>
+      <tr><td style="padding:4px 0;color:var(--text-secondary)">Vencimento:</td><td>${fmtDate(d.data_vencimento)}</td></tr>
+      ${d.tipo==='pagar'?`<tr><td style="padding:4px 0;color:var(--text-secondary)">Centro de Custo:</td><td><span class="badge ${d.centro_custo}">${CC_NAMES[d.centro_custo]||d.centro_custo}</span></td></tr>`:''}
+      ${d.numero_documento?`<tr><td style="padding:4px 0;color:var(--text-secondary)">N° Documento:</td><td>${d.numero_documento}</td></tr>`:''}
+      ${d.codigo_barras?`<tr><td style='padding:4px 0;color:var(--text-secondary)'>Cod. Barras:</td><td style='font-family:monospace;font-size:11px;word-break:break-all'>${d.codigo_barras}</td></tr>`:''}
+    </table>`;
+
+  const fa = document.getElementById('ai-form-area');
+  fa.innerHTML = `<p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px"><i class="ti ti-edit"></i> Confirme ou ajuste os campos antes de lançar:</p>`;
+
+  if (d.tipo==='pagar') {
+    fa.innerHTML += `
+    <div class="form-row"><div class="form-group"><label>Fornecedor</label><input id="ai-forn" value="${d.fornecedor||''}"></div>
+    <div class="form-group"><label>Centro de Custo</label><select id="ai-centro">
+      <option value="fornecedores" ${d.centro_custo==='fornecedores'?'selected':''}>Fornecedores</option>
+      <option value="salario" ${d.centro_custo==='salario'?'selected':''}>Salário/Pessoal</option>
+      <option value="impostos" ${d.centro_custo==='impostos'?'selected':''}>Impostos</option>
+      <option value="fixas" ${d.centro_custo==='fixas'?'selected':''}>Despesas Fixas</option>
+    </select></div></div>
+    <div class="form-row full"><div class="form-group"><label>Descrição</label><input id="ai-desc" value="${d.descricao||''}"></div></div>
+    <div class="form-row three">
+      <div class="form-group"><label>Emissão</label><input type="date" id="ai-data" value="${d.data_emissao||today()}"></div>
+      <div class="form-group"><label>Vencimento</label><input type="date" id="ai-venc" value="${d.data_vencimento||today()}"></div>
+      <div class="form-group"><label>Valor (R$)</label><input type="number" id="ai-valor" value="${d.valor||0}" step="0.01"></div>
+    <div class="form-row full"><div class="form-group"><label>Código de barras</label><input id="ai-barras" value="${d.codigo_barras||''}" style="font-family:monospace;font-size:12px" placeholder="Extraído automaticamente do boleto"></div></div>\`;
+  } else {
+    // OS (receber) — inclui campos de dados + forma de pagamento completa
+    fa.innerHTML += `
+    <div class="form-row"><div class="form-group"><label>Cliente</label><input id="ai-cliente" value="${d.cliente||d.fornecedor||''}"></div>
+    <div class="form-group"><label>N° O.S.</label><input id="ai-os" value="${d.os||d.numero_documento||'OS-???'}"></div></div>
+    <div class="form-row full"><div class="form-group"><label>Descrição</label><input id="ai-desc" value="${d.descricao||'Ordem de Serviço'}"></div></div>
+    <div class="form-row">
+      <div class="form-group"><label>Emissão</label><input type="date" id="ai-data" value="${d.data_emissao||today()}"></div>
+      <div class="form-group"><label>Valor (R$)</label><input type="number" id="ai-valor" value="${d.valor||0}" step="0.01" oninput="atualizarResumoAI()"></div>
+    </div>
+    <div style="border-top:1px solid var(--border-light);margin:12px 0;padding-top:12px">
+      <p style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:10px"><i class="ti ti-credit-card"></i> Forma de Recebimento</p>
+      <div class="form-row full"><div class="form-group"><label>Forma de pagamento</label>
+        <select id="ai-forma" onchange="toggleFormaAI()">
+          <option value="pix">PIX</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="debito">Cartão débito (D+1)</option>
+          <option value="credito">Cartão crédito (antecipação D+1)</option>
+          <option value="boleto">Boleto</option>
+          <option value="transferencia">Transferência</option>
+        </select>
+      </div></div>
+      <div id="ai-bloco-simples" style="display:block">
+        <div class="form-row"><div class="form-group"><label>Data de recebimento</label><input type="date" id="ai-venc-simples" value="${d.data_vencimento||today()}"></div></div>
+      </div>
+      <div id="ai-bloco-debito" style="display:none">
+        <div style="background:var(--blue-light);border-radius:var(--radius-md);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--blue-text)"><i class="ti ti-info-circle"></i> Débito D+1 — informe a taxa da maquininha.</div>
+        <div class="form-row three">
+          <div class="form-group"><label>Data da venda</label><input type="date" id="ai-debito-data" value="${today()}"></div>
+          <div class="form-group"><label>Taxa (%)</label><input type="number" id="ai-debito-taxa" value="1.99" step="0.01" min="0" oninput="atualizarResumoAI()"></div>
+          <div class="form-group"><label>Líquido estimado</label><input type="text" id="ai-debito-liquido" readonly style="background:var(--bg-secondary);font-weight:600;color:var(--green)"></div>
+        </div>
+      </div>
+      <div id="ai-bloco-credito" style="display:none">
+        <div style="background:var(--purple-light);border-radius:var(--radius-md);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--purple-text)"><i class="ti ti-info-circle"></i> Crédito com antecipação total D+1.</div>
+        <div class="form-row three">
+          <div class="form-group"><label>N° parcelas</label><input type="number" id="ai-credito-parc" value="1" min="1" max="24" oninput="atualizarResumoAI()"></div>
+          <div class="form-group"><label>Taxa parcela (%)</label><input type="number" id="ai-credito-taxa" value="2.99" step="0.01" min="0" oninput="atualizarResumoAI()"></div>
+          <div class="form-group"><label>Taxa antecipação (%)</label><input type="number" id="ai-credito-antecip" value="1.50" step="0.01" min="0" oninput="atualizarResumoAI()"></div>
+        </div>
+        <div id="ai-credito-resumo" style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:10px 12px;font-size:13px;display:none">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Bruto:</span><span id="ai-cr-bruto" style="font-weight:600"></span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Desc. parcelamento:</span><span id="ai-cr-dparc" style="color:var(--red);font-weight:600"></span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Desc. antecipação:</span><span id="ai-cr-dantecip" style="color:var(--red);font-weight:600"></span></div>
+          <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:6px;margin-top:4px"><span style="font-weight:600">Líquido na conta:</span><span id="ai-cr-liquido" style="font-weight:700;color:var(--green);font-size:15px"></span></div>
+        </div>
+      </div>
+      <div id="ai-bloco-boleto" style="display:none">
+        <div style="background:var(--amber-light);border-radius:var(--radius-md);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--amber-text)"><i class="ti ti-info-circle"></i> Informe as parcelas e o prazo de cada uma.</div>
+        <div class="form-row"><div class="form-group"><label>N° de parcelas</label><input type="number" id="ai-boleto-parc" min="1" max="12" value="1" oninput="gerarCamposBoletoAI()"></div></div>
+        <div id="ai-boleto-campos"></div>
+      </div>
+    </div>`;
+    // inicializa cálculo
+    setTimeout(()=>atualizarResumoAI(), 50);
+  }
+}
+
+function toggleFormaAI() {
+  const f = document.getElementById('ai-forma').value;
+  document.getElementById('ai-bloco-simples').style.display = ['pix','dinheiro','transferencia'].includes(f) ? 'block' : 'none';
+  document.getElementById('ai-bloco-debito').style.display = f==='debito' ? 'block' : 'none';
+  document.getElementById('ai-bloco-credito').style.display = f==='credito' ? 'block' : 'none';
+  document.getElementById('ai-bloco-boleto').style.display = f==='boleto' ? 'block' : 'none';
+  if (f==='boleto') gerarCamposBoletoAI();
+  atualizarResumoAI();
+}
+
+function atualizarResumoAI() {
+  const valor = parseFloat(document.getElementById('ai-valor')?.value) || 0;
+  const f = document.getElementById('ai-forma')?.value;
+  if (!f) return;
+  if (f==='debito') {
+    const taxa = parseFloat(document.getElementById('ai-debito-taxa').value) || 0;
+    const el = document.getElementById('ai-debito-liquido');
+    if (el) el.value = 'R$ ' + (valor*(1-taxa/100)).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  if (f==='credito' && valor > 0) {
+    const parc = parseInt(document.getElementById('ai-credito-parc').value)||1;
+    const taxa = parseFloat(document.getElementById('ai-credito-taxa').value)||0;
+    const ant = parseFloat(document.getElementById('ai-credito-antecip').value)||0;
+    const dP = valor*(taxa/100)*parc, dA = valor*(ant/100), liq = valor-dP-dA;
+    document.getElementById('ai-credito-resumo').style.display = 'block';
+    document.getElementById('ai-cr-bruto').textContent = fmt(valor);
+    document.getElementById('ai-cr-dparc').textContent = '- ' + fmt(dP);
+    document.getElementById('ai-cr-dantecip').textContent = '- ' + fmt(dA);
+    document.getElementById('ai-cr-liquido').textContent = fmt(liq);
+  }
+}
+
+function gerarCamposBoletoAI() {
+  const n = parseInt(document.getElementById('ai-boleto-parc').value)||1;
+  const valor = parseFloat(document.getElementById('ai-valor')?.value)||0;
+  const vp = n > 0 ? (valor/n).toFixed(2) : 0;
+  let html = '';
+  for (let i=1; i<=n; i++) html += `<div class="form-row three" style="margin-bottom:6px"><div class="form-group"><label>Parcela ${i} — Prazo (dias)</label><input type="number" id="ai-bol-dias-${i}" value="${i*30}" min="1"></div><div class="form-group"><label>Valor (R$)</label><input type="number" id="ai-bol-valor-${i}" value="${vp}" step="0.01" min="0"></div><div class="form-group"><label>Vencimento</label><input type="date" id="ai-bol-venc-${i}"></div></div>`;
+  document.getElementById('ai-boleto-campos').innerHTML = html;
+  const db = document.getElementById('ai-data')?.value || today();
+  for (let i=1; i<=n; i++) {
+    const dt = new Date(db+'T00:00:00'); dt.setDate(dt.getDate()+(parseInt(document.getElementById(`ai-bol-dias-${i}`).value)||30));
+    document.getElementById(`ai-bol-venc-${i}`).value = dt.toISOString().split('T')[0];
+    document.getElementById(`ai-bol-dias-${i}`).addEventListener('input', function(){const d2=new Date(db+'T00:00:00');d2.setDate(d2.getDate()+(parseInt(this.value)||30));document.getElementById(`ai-bol-venc-${i}`).value=d2.toISOString().split('T')[0];});
+  }
+}
+
+function lancarDoAI() {
+  const tipo = aiData.tipo || 'pagar';
+  if (tipo === 'pagar') {
+    const id = appData.pagar.length ? Math.max(...appData.pagar.map(p=>p.id))+1 : 1;
+    const pEntry = {
+      id,
+      forn: document.getElementById('ai-forn')?.value || aiData.fornecedor || '',
+      desc: document.getElementById('ai-desc')?.value || aiData.descricao || '',
+      centro: document.getElementById('ai-centro')?.value || aiData.centro_custo || 'fornecedores',
+      data: document.getElementById('ai-data')?.value || today(),
+      venc: document.getElementById('ai-venc')?.value || today(),
+      valor: parseFloat(document.getElementById('ai-valor')?.value) || 0,
+      doc: aiData.numero_documento || '',
+      barras: document.getElementById('ai-barras')?.value || aiData.codigo_barras || '',
+      obs: aiData.observacoes || '',
+      status: 'pendente'
+    };
+    appData.pagar.push(pEntry);
+    salvarPagar(pEntry).catch(e=>alert('Erro ao salvar: '+e.message));
+  } else {
+    // Receber — usa os campos de forma de pagamento do formulário AI
+    const id = appData.receber.length ? Math.max(...appData.receber.map(r=>r.id))+1 : 1;
+    const forma = document.getElementById('ai-forma')?.value || 'pix';
+    const valor = parseFloat(document.getElementById('ai-valor')?.value) || 0;
+    const data = document.getElementById('ai-data')?.value || today();
+    let entry = {
+      id,
+      cliente: document.getElementById('ai-cliente')?.value || aiData.cliente || aiData.fornecedor || '',
+      desc: document.getElementById('ai-desc')?.value || aiData.descricao || '',
+      os: document.getElementById('ai-os')?.value || aiData.numero_documento || 'OS-???',
+      data, valor, forma, obs: '', status: 'pendente'
+    };
+    if (['pix','dinheiro','transferencia'].includes(forma)) {
+      entry.venc = document.getElementById('ai-venc-simples')?.value || today();
+    } else if (forma==='debito') {
+      const taxa = parseFloat(document.getElementById('ai-debito-taxa')?.value)||0;
+      const liq = valor*(1-taxa/100);
+      entry.taxaMaquininha = taxa; entry.descontoMaquininha = valor-liq; entry.valorLiquido = liq;
+      const dv = document.getElementById('ai-debito-data')?.value || data;
+      const dc = new Date(dv+'T00:00:00'); dc.setDate(dc.getDate()+1);
+      entry.venc = dc.toISOString().split('T')[0];
+    } else if (forma==='credito') {
+      const parc = parseInt(document.getElementById('ai-credito-parc')?.value)||1;
+      const taxa = parseFloat(document.getElementById('ai-credito-taxa')?.value)||0;
+      const ant = parseFloat(document.getElementById('ai-credito-antecip')?.value)||0;
+      const dP = valor*(taxa/100)*parc, dA = valor*(ant/100);
+      entry.taxaMaquininha=taxa; entry.taxaAntecipacao=ant; entry.descontoMaquininha=dP+dA; entry.valorLiquido=valor-dP-dA; entry.numParcelas=parc;
+      const dc = new Date(data+'T00:00:00'); dc.setDate(dc.getDate()+1);
+      entry.venc = dc.toISOString().split('T')[0];
+    } else if (forma==='boleto') {
+      const n = parseInt(document.getElementById('ai-boleto-parc')?.value)||1;
+      entry.parcelas = [];
+      for (let i=1;i<=n;i++) entry.parcelas.push({num:i,valor:parseFloat(document.getElementById(`ai-bol-valor-${i}`)?.value)||0,venc:document.getElementById(`ai-bol-venc-${i}`)?.value||today(),status:'pendente'});
+      entry.venc = entry.parcelas[0]?.venc || today();
+    }
+    appData.receber.push(entry);
+    salvarReceber(entry).catch(e=>alert('Erro ao salvar: '+e.message));
+  }
+  alert('✓ Lançamento realizado com sucesso!');
+  resetDoc();
+  renderDashboard();
+}
+
+function resetDoc() {
+  document.getElementById('file-input').value = '';
+  document.getElementById('file-preview-area').innerHTML = '';
+  document.getElementById('ai-result-area').style.display = 'none';
+  aiData = {};
+}
+
+// ============================================================
+// EDITAR LANÇAMENTOS
+// ============================================================
+function editarReceber(id) {
+  const r = appData.receber.find(x=>x.id===id);
+  if (!r) return;
+  document.getElementById('er-id').value = id;
+  document.getElementById('er-cliente').value = r.cliente || '';
+  document.getElementById('er-os').value = r.os || '';
+  document.getElementById('er-desc').value = r.desc || '';
+  document.getElementById('er-data').value = r.data || today();
+  document.getElementById('er-valor').value = r.valor || 0;
+  document.getElementById('er-forma').value = r.forma || 'pix';
+  document.getElementById('er-obs').value = r.obs || '';
+  // venc
+  const vencEl = document.getElementById('er-venc');
+  vencEl.value = r.venc || today();
+  openModal('modal-editar-receber');
+}
+
+function salvarEdicaoReceber() {
+  const id = parseInt(document.getElementById('er-id').value);
+  const r = appData.receber.find(x=>x.id===id);
+  if (!r) return;
+  r.cliente = document.getElementById('er-cliente').value.trim();
+  r.os = document.getElementById('er-os').value.trim();
+  r.desc = document.getElementById('er-desc').value.trim();
+  r.data = document.getElementById('er-data').value || today();
+  r.valor = parseFloat(document.getElementById('er-valor').value) || 0;
+  r.forma = document.getElementById('er-forma').value;
+  r.obs = document.getElementById('er-obs').value;
+  r.venc = document.getElementById('er-venc').value || today();
+  atualizarRegistroReceber(id, r).catch(e=>alert('Erro ao salvar: '+e.message));
+  closeModal('modal-editar-receber');
+  renderReceber(); renderDashboard();
+}
+
+function editarPagar(id) {
+  const p = appData.pagar.find(x=>x.id===id);
+  if (!p) return;
+  document.getElementById('ep-id').value = id;
+  document.getElementById('ep-forn').value = p.forn || '';
+  document.getElementById('ep-desc').value = p.desc || '';
+  document.getElementById('ep-centro').value = p.centro || 'fornecedores';
+  document.getElementById('ep-data').value = p.data || today();
+  document.getElementById('ep-venc').value = p.venc || today();
+  document.getElementById('ep-valor').value = p.valor || 0;
+  document.getElementById('ep-doc').value = p.doc || '';
+  document.getElementById('ep-barras').value = p.barras || '';
+  document.getElementById('ep-obs').value = p.obs || '';
+  openModal('modal-editar-pagar');
+}
+
+function salvarEdicaoPagar() {
+  const id = parseInt(document.getElementById('ep-id').value);
+  const p = appData.pagar.find(x=>x.id===id);
+  if (!p) return;
+  p.forn = document.getElementById('ep-forn').value.trim();
+  p.desc = document.getElementById('ep-desc').value.trim();
+  p.centro = document.getElementById('ep-centro').value;
+  p.data = document.getElementById('ep-data').value || today();
+  p.venc = document.getElementById('ep-venc').value || today();
+  p.valor = parseFloat(document.getElementById('ep-valor').value) || 0;
+  p.doc = document.getElementById('ep-doc').value;
+  p.barras = document.getElementById('ep-barras').value || '';
+  p.obs = document.getElementById('ep-obs').value;
+  atualizarRegistroPagar(id, p).catch(e=>alert('Erro ao salvar: '+e.message));
+  closeModal('modal-editar-pagar');
+  renderPagar(); renderDashboard();
+}
+
+// Init — carrega dados do Supabase
+carregarDados();
+</script>
+
+<!-- MODAL: EDITAR RECEBER -->
+<div class="modal-bg" id="modal-editar-receber">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title"><i class="ti ti-edit"></i> Editar Conta a Receber</span><button class="close-btn" onclick="closeModal('modal-editar-receber')">×</button></div>
+    <input type="hidden" id="er-id">
+    <div class="form-row"><div class="form-group"><label>Cliente</label><input id="er-cliente" placeholder="Nome do cliente"></div><div class="form-group"><label>N° O.S.</label><input id="er-os" placeholder="OS-0001"></div></div>
+    <div class="form-row full"><div class="form-group"><label>Descrição do serviço</label><input id="er-desc"></div></div>
+    <div class="form-row"><div class="form-group"><label>Data de emissão</label><input type="date" id="er-data"></div><div class="form-group"><label>Valor (R$)</label><input type="number" id="er-valor" step="0.01" min="0"></div></div>
+    <div class="form-row"><div class="form-group"><label>Data de vencimento / recebimento</label><input type="date" id="er-venc"></div>
+    <div class="form-group"><label>Forma de pagamento</label>
+      <select id="er-forma"><option value="pix">PIX</option><option value="dinheiro">Dinheiro</option><option value="debito">Cartão débito (D+1)</option><option value="credito">Cartão crédito</option><option value="boleto">Boleto</option><option value="transferencia">Transferência</option></select>
+    </div></div>
+    <div class="form-row full"><div class="form-group"><label>Observações</label><textarea id="er-obs"></textarea></div></div>
+    <div class="btn-row"><button class="btn primary" onclick="salvarEdicaoReceber()"><i class="ti ti-check"></i> Salvar alterações</button><button class="btn" onclick="closeModal('modal-editar-receber')">Cancelar</button></div>
+  </div>
+</div>
+
+<!-- MODAL: EDITAR PAGAR -->
+<div class="modal-bg" id="modal-editar-pagar">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title"><i class="ti ti-edit"></i> Editar Conta a Pagar</span><button class="close-btn" onclick="closeModal('modal-editar-pagar')">×</button></div>
+    <input type="hidden" id="ep-id">
+    <div class="form-row"><div class="form-group"><label>Fornecedor / Credor</label><input id="ep-forn"></div><div class="form-group"><label>Centro de Custo</label><select id="ep-centro"><option value="fornecedores">Fornecedores</option><option value="salario">Salário / Pessoal</option><option value="impostos">Impostos</option><option value="fixas">Despesas Fixas</option></select></div></div>
+    <div class="form-row full"><div class="form-group"><label>Descrição</label><input id="ep-desc"></div></div>
+    <div class="form-row"><div class="form-group"><label>Data de emissão</label><input type="date" id="ep-data"></div><div class="form-group"><label>Data de vencimento</label><input type="date" id="ep-venc"></div></div>
+    <div class="form-row"><div class="form-group"><label>Valor (R$)</label><input type="number" id="ep-valor" step="0.01" min="0"></div><div class="form-group"><label>N° Documento</label><input id="ep-doc"></div></div>
+    <div class="form-row full"><div class="form-group"><label>Código de barras</label><input id="ep-barras" style="font-family:monospace;font-size:12px"></div></div>
+    <div class="form-row full"><div class="form-group"><label>Observações</label><textarea id="ep-obs"></textarea></div></div>
+    <div class="btn-row"><button class="btn primary" onclick="salvarEdicaoPagar()"><i class="ti ti-check"></i> Salvar alterações</button><button class="btn" onclick="closeModal('modal-editar-pagar')">Cancelar</button></div>
+  </div>
+</div>
+
+</body>
+</html>
