@@ -1536,7 +1536,7 @@ function showAIResult(d) {
       <div class="form-group"><label>Emissão</label><input type="date" id="ai-data" value="${d.data_emissao||today()}"></div>
       <div class="form-group"><label>Vencimento</label><input type="date" id="ai-venc" value="${d.data_vencimento||today()}"></div>
       <div class="form-group"><label>Valor (R$)</label><input type="number" id="ai-valor" value="${d.valor||0}" step="0.01"></div>
-    <div class="form-row full"><div class="form-group"><label>Código de barras</label><input id="ai-barras" value="${d.codigo_barras||''}" style="font-family:monospace;font-size:12px" placeholder="Extraído automaticamente do boleto"></div></div>\`;
+    <div class="form-row full"><div class="form-group"><label>Código de barras</label><input id="ai-barras" value="${d.codigo_barras||''}" style="font-family:monospace;font-size:12px" placeholder="Extraído automaticamente do boleto"></div></div>`;
   } else {
     // OS (receber) — inclui campos de dados + forma de pagamento completa
     fa.innerHTML += `
