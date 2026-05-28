@@ -523,6 +523,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
       <div id="r-boleto-campos"></div>
     </div>
 
+    <div class="form-row"><div class="form-group"><label>Banco de recebimento</label><select id="r-banco"><option value="">— Não informado —</option><option value="Santander">Santander</option><option value="Itaú">Itaú</option><option value="Outro">Outro</option></select></div><div class="form-group"></div></div>
     <div class="form-row full">
       <div class="form-group"><label>Observações</label><textarea id="r-obs" placeholder="Notas adicionais..."></textarea></div>
     </div>
@@ -579,6 +580,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
       <div class="form-group"><label>N° Documento</label><input id="p-doc" placeholder="NF / boleto / DAS..."></div>
     </div>
     <div class="form-row full"><div class="form-group"><label>Código de barras <span style="font-size:11px;color:var(--text-secondary)">(opcional)</span></label><input id="p-barras" placeholder="Cole aqui o código de barras do boleto..." style="font-family:monospace;font-size:12px"></div></div>
+    <div class="form-row"><div class="form-group"><label>Banco de pagamento</label><select id="p-banco"><option value="">— Não informado —</option><option value="Santander">Santander</option><option value="Itaú">Itaú</option><option value="Outro">Outro</option></select></div><div class="form-group"></div></div>
     <div class="form-row full">
       <div class="form-group"><label>Observações</label><textarea id="p-obs" placeholder="Notas adicionais..."></textarea></div>
     </div>
@@ -668,13 +670,14 @@ async function carregarDados() {
       taxaMaquininha: r.taxa_maquininha ? Number(r.taxa_maquininha) : null,
       taxaAntecipacao: r.taxa_antecipacao ? Number(r.taxa_antecipacao) : null,
       numParcelas: r.num_parcelas||null,
-      parcelas: r.parcelas||null
+      parcelas: r.parcelas||null,
+      banco: r.banco||''
     }));
     appData.pagar = (pagar||[]).map(p => ({
       id: p.id, forn: p.forn||'', desc: p.descricao||'', centro: p.centro||'fornecedores',
       data: p.data||today(), venc: p.venc||today(), valor: Number(p.valor)||0,
       doc: p.doc||'', obs: p.obs||'', status: p.status||'pendente',
-      barras: p.barras||''
+      barras: p.barras||'', banco: p.banco||''
     }));
     renderDashboard();
     mostrarStatusDB('conectado');
@@ -705,6 +708,7 @@ async function salvarReceber(entry) {
     cliente: entry.cliente, os: entry.os, descricao: entry.desc,
     data: entry.data, venc: entry.venc, valor: entry.valor,
     forma: entry.forma, status: entry.status, obs: entry.obs,
+    banco: entry.banco||null,
     valor_liquido: entry.valorLiquido||null,
     desconto_maquininha: entry.descontoMaquininha||null,
     taxa_maquininha: entry.taxaMaquininha||null,
@@ -723,7 +727,7 @@ async function salvarPagar(entry) {
     forn: entry.forn, descricao: entry.desc, centro: entry.centro,
     data: entry.data, venc: entry.venc, valor: entry.valor,
     doc: entry.doc, obs: entry.obs, status: entry.status,
-    barras: entry.barras||null
+    barras: entry.barras||null, banco: entry.banco||null
   };
   const res = await sbFetch('pagar', 'POST', row);
   entry.id = res[0].id;
@@ -753,7 +757,7 @@ async function atualizarRegistroReceber(id, dados) {
   await sbFetch(`receber?id=eq.${id}`, 'PATCH', {
     cliente: dados.cliente, os: dados.os, descricao: dados.desc,
     data: dados.data, venc: dados.venc, valor: dados.valor,
-    forma: dados.forma, obs: dados.obs
+    forma: dados.forma, obs: dados.obs, banco: dados.banco||null
   });
   mostrarStatusDB('conectado');
 }
@@ -763,7 +767,7 @@ async function atualizarRegistroPagar(id, dados) {
   await sbFetch(`pagar?id=eq.${id}`, 'PATCH', {
     forn: dados.forn, descricao: dados.desc, centro: dados.centro,
     data: dados.data, venc: dados.venc, valor: dados.valor,
-    doc: dados.doc, obs: dados.obs, barras: dados.barras||null
+    doc: dados.doc, obs: dados.obs, barras: dados.barras||null, banco: dados.banco||null
   });
   mostrarStatusDB('conectado');
 }
@@ -898,7 +902,7 @@ function renderDashboard() {
       <td><span class="badge ${r.tipo==='receber'?'os':'pendente'}" style="${r.tipo==='pagar'?'background:var(--red-light);color:var(--red-text)':''}">${r.tipo==='receber'?'Receber':'Pagar'}</span></td>
       <td>${r.tipo==='pagar'?(CC_NAMES[r.centro]||'—'):'—'}</td>
       <td style="font-weight:600;color:${r.tipo==='receber'?'var(--green)':'var(--red)'}">${fmt(r.valor)}</td>
-      <td><span class="badge ${r.status}">${r.status}</span></td>
+      <td><span class="badge ${r.status}">${r.status}</span>${r.banco?`<br><span style="font-size:11px;color:var(--text-secondary)">${r.banco}</span>`:''}</td>
     </tr>`).join('');
 }
 
@@ -1048,7 +1052,7 @@ function renderReceber() {
       <td>${vencDisplay}</td>
       <td><span style="font-size:12px">${FORMA_LABELS[r.forma]||r.forma}</span></td>
       <td style="font-weight:600;color:var(--green)">${valorDisplay}${liquido}</td>
-      <td><span class="badge ${r.status}">${r.status}</span></td>
+      <td><span class="badge ${r.status}">${r.status}</span>${r.banco?`<br><span style="font-size:11px;color:var(--text-secondary)">${r.banco}</span>`:''}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap">
         ${r.status!=='recebido'?`<button class="btn sm primary" onclick="abrirBaixaReceber(${r.id})"><i class="ti ti-check"></i> Baixar</button>`:''}
         <button class="btn sm" onclick="editarReceber(${r.id})" title="Editar"><i class="ti ti-pencil"></i></button>
@@ -1080,7 +1084,7 @@ function renderPagar() {
         ${p.barras?`<br><span style="font-size:10px;color:var(--text-hint);font-family:monospace;cursor:pointer" onclick="copiarBarras('${p.barras}')" title="Clique para copiar o código de barras"><i class="ti ti-barcode" style="font-size:11px"></i> ${p.barras.substring(0,20)}...</span>`:''}
       </td>
       <td style="font-weight:600;color:var(--red)">${fmt(p.valor)}</td>
-      <td><span class="badge ${p.status}">${p.status}</span></td>
+      <td><span class="badge ${p.status}">${p.status}</span>${p.banco?`<br><span style="font-size:11px;color:var(--text-secondary)">${p.banco}</span>`:''}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap">
         ${p.status!=='pago'?`<button class="btn sm primary" onclick="confirmarLiquidacao('pagar',${p.id})"><i class="ti ti-check"></i> Pagar</button>`:''}
         <button class="btn sm" onclick="editarPagar(${p.id})" title="Editar"><i class="ti ti-pencil"></i></button>
@@ -1137,7 +1141,7 @@ function addReceber() {
   const forma = document.getElementById('r-forma').value;
   const valor = parseFloat(document.getElementById('r-valor').value) || 0;
   const data = document.getElementById('r-data').value || today();
-  let entry = { id, cliente, desc, os: document.getElementById('r-os').value || 'OS-???', data, valor, forma, obs: document.getElementById('r-obs').value, status: 'pendente' };
+  let entry = { id, cliente, desc, os: document.getElementById('r-os').value || 'OS-???', data, valor, forma, obs: document.getElementById('r-obs').value, banco: document.getElementById('r-banco')?.value||'', status: 'pendente' };
 
   if (['pix','dinheiro','transferencia'].includes(forma)) {
     entry.venc = document.getElementById('r-venc-simples').value || today();
@@ -1200,11 +1204,12 @@ function addPagar(overrides={}) {
     valor: overrides.valor || parseFloat(document.getElementById('p-valor').value) || 0,
     doc: overrides.doc || document.getElementById('p-doc').value || '',
     barras: ov.barras || document.getElementById('p-barras')?.value || '',
+    banco: document.getElementById('p-banco')?.value || '',
     obs: overrides.obs || document.getElementById('p-obs').value || '',
     status: 'pendente'
   });
   salvarPagar(entry).catch(e=>alert('Erro ao salvar: '+e.message));
-  ['p-forn','p-desc','p-data','p-venc','p-valor','p-doc','p-obs','p-barras'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['p-forn','p-desc','p-data','p-venc','p-valor','p-doc','p-obs','p-barras','p-banco'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   closeModal('modal-add-pagar');
   renderPagar(); renderDashboard();
 }
@@ -1367,7 +1372,7 @@ function filtrarCC(centro, btn) {
       <td>${p.desc}</td>
       <td>${fmtDate(p.venc)}</td>
       <td style="font-weight:600;color:var(--red)">${fmt(p.valor)}</td>
-      <td><span class="badge ${p.status}">${p.status}</span></td>
+      <td><span class="badge ${p.status}">${p.status}</span>${p.banco?`<br><span style="font-size:11px;color:var(--text-secondary)">${p.banco}</span>`:''}</td>
     </tr>`).join('');
 }
 
@@ -1725,6 +1730,7 @@ function editarReceber(id) {
   document.getElementById('er-data').value = r.data || today();
   document.getElementById('er-valor').value = r.valor || 0;
   document.getElementById('er-forma').value = r.forma || 'pix';
+  document.getElementById('er-banco').value = r.banco || '';
   document.getElementById('er-obs').value = r.obs || '';
   // venc
   const vencEl = document.getElementById('er-venc');
@@ -1742,6 +1748,7 @@ function salvarEdicaoReceber() {
   r.data = document.getElementById('er-data').value || today();
   r.valor = parseFloat(document.getElementById('er-valor').value) || 0;
   r.forma = document.getElementById('er-forma').value;
+  r.banco = document.getElementById('er-banco')?.value || '';
   r.obs = document.getElementById('er-obs').value;
   r.venc = document.getElementById('er-venc').value || today();
   atualizarRegistroReceber(id, r).catch(e=>alert('Erro ao salvar: '+e.message));
@@ -1761,6 +1768,7 @@ function editarPagar(id) {
   document.getElementById('ep-valor').value = p.valor || 0;
   document.getElementById('ep-doc').value = p.doc || '';
   document.getElementById('ep-barras').value = p.barras || '';
+  document.getElementById('ep-banco').value = p.banco || '';
   document.getElementById('ep-obs').value = p.obs || '';
   openModal('modal-editar-pagar');
 }
@@ -1777,6 +1785,7 @@ function salvarEdicaoPagar() {
   p.valor = parseFloat(document.getElementById('ep-valor').value) || 0;
   p.doc = document.getElementById('ep-doc').value;
   p.barras = document.getElementById('ep-barras').value || '';
+  p.banco = document.getElementById('ep-banco').value || '';
   p.obs = document.getElementById('ep-obs').value;
   atualizarRegistroPagar(id, p).catch(e=>alert('Erro ao salvar: '+e.message));
   closeModal('modal-editar-pagar');
@@ -1799,6 +1808,14 @@ carregarDados();
     <div class="form-group"><label>Forma de pagamento</label>
       <select id="er-forma"><option value="pix">PIX</option><option value="dinheiro">Dinheiro</option><option value="debito">Cartão débito (D+1)</option><option value="credito">Cartão crédito</option><option value="boleto">Boleto</option><option value="transferencia">Transferência</option></select>
     </div></div>
+    <div class="form-row"><div class="form-group"><label>Banco de recebimento</label>
+      <select id="er-banco">
+        <option value="">— Não informado —</option>
+        <option value="Santander">Santander</option>
+        <option value="Itaú">Itaú</option>
+        <option value="Outro">Outro</option>
+      </select>
+    </div><div class="form-group"></div></div>
     <div class="form-row full"><div class="form-group"><label>Observações</label><textarea id="er-obs"></textarea></div></div>
     <div class="btn-row"><button class="btn primary" onclick="salvarEdicaoReceber()"><i class="ti ti-check"></i> Salvar alterações</button><button class="btn" onclick="closeModal('modal-editar-receber')">Cancelar</button></div>
   </div>
@@ -1814,6 +1831,14 @@ carregarDados();
     <div class="form-row"><div class="form-group"><label>Data de emissão</label><input type="date" id="ep-data"></div><div class="form-group"><label>Data de vencimento</label><input type="date" id="ep-venc"></div></div>
     <div class="form-row"><div class="form-group"><label>Valor (R$)</label><input type="number" id="ep-valor" step="0.01" min="0"></div><div class="form-group"><label>N° Documento</label><input id="ep-doc"></div></div>
     <div class="form-row full"><div class="form-group"><label>Código de barras</label><input id="ep-barras" style="font-family:monospace;font-size:12px"></div></div>
+    <div class="form-row"><div class="form-group"><label>Banco de pagamento</label>
+      <select id="ep-banco">
+        <option value="">— Não informado —</option>
+        <option value="Santander">Santander</option>
+        <option value="Itaú">Itaú</option>
+        <option value="Outro">Outro</option>
+      </select>
+    </div><div class="form-group"></div></div>
     <div class="form-row full"><div class="form-group"><label>Observações</label><textarea id="ep-obs"></textarea></div></div>
     <div class="btn-row"><button class="btn primary" onclick="salvarEdicaoPagar()"><i class="ti ti-check"></i> Salvar alterações</button><button class="btn" onclick="closeModal('modal-editar-pagar')">Cancelar</button></div>
   </div>
@@ -1821,3 +1846,4 @@ carregarDados();
 
 </body>
 </html>
+
