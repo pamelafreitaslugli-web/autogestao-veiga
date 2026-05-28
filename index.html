@@ -260,13 +260,22 @@ tbody tr:hover td{background:var(--bg-secondary)}
     <!-- ==================== CONTAS A RECEBER ==================== -->
     <div class="panel" id="panel-receber">
       <div class="section-title"><i class="ti ti-arrow-down-circle"></i> Contas a Receber</div>
-      <div class="filter-row">
+      <div class="filter-row" style="flex-wrap:wrap;gap:8px">
         <select id="filtro-receber" onchange="renderReceber()">
           <option value="">Todos os status</option>
           <option value="pendente">Pendente</option>
           <option value="recebido">Recebido</option>
           <option value="vencido">Vencido</option>
         </select>
+        <select id="ordem-receber" onchange="renderReceber()">
+          <option value="">Ordenar por...</option>
+          <option value="venc-asc">Vencimento ↑</option>
+          <option value="venc-desc">Vencimento ↓</option>
+          <option value="valor-desc">Maior valor</option>
+          <option value="valor-asc">Menor valor</option>
+          <option value="cliente-asc">Cliente A→Z</option>
+        </select>
+        <input type="text" id="busca-receber" placeholder="🔍 Buscar cliente ou O.S..." oninput="renderReceber()" style="padding:7px 12px;border:1px solid var(--border-medium);border-radius:var(--radius-md);font-size:13px;min-width:180px">
         <button class="btn primary" onclick="openModal('modal-add-receber')"><i class="ti ti-plus"></i> Nova O.S. / Recebimento</button>
       </div>
       <div class="card">
@@ -282,7 +291,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
     <!-- ==================== CONTAS A PAGAR ==================== -->
     <div class="panel" id="panel-pagar">
       <div class="section-title"><i class="ti ti-arrow-up-circle"></i> Contas a Pagar</div>
-      <div class="filter-row">
+      <div class="filter-row" style="flex-wrap:wrap;gap:8px">
         <select id="filtro-pagar" onchange="renderPagar()">
           <option value="">Todos os status</option>
           <option value="pendente">Pendente</option>
@@ -296,6 +305,15 @@ tbody tr:hover td{background:var(--bg-secondary)}
           <option value="impostos">Impostos</option>
           <option value="fixas">Despesas Fixas</option>
         </select>
+        <select id="ordem-pagar" onchange="renderPagar()">
+          <option value="">Ordenar por...</option>
+          <option value="venc-asc">Vencimento ↑</option>
+          <option value="venc-desc">Vencimento ↓</option>
+          <option value="valor-desc">Maior valor</option>
+          <option value="valor-asc">Menor valor</option>
+          <option value="forn-asc">Fornecedor A→Z</option>
+        </select>
+        <input type="text" id="busca-pagar" placeholder="🔍 Buscar fornecedor..." oninput="renderPagar()" style="padding:7px 12px;border:1px solid var(--border-medium);border-radius:var(--radius-md);font-size:13px;min-width:180px">
         <button class="btn primary" onclick="openModal('modal-add-pagar')"><i class="ti ti-plus"></i> Novo Lançamento</button>
       </div>
       <div class="card">
@@ -1031,7 +1049,15 @@ function abrirBaixaReceber(id) {
 
 function renderReceber() {
   const filtro = document.getElementById('filtro-receber').value;
-  let items = filtro ? appData.receber.filter(r=>r.status===filtro) : appData.receber;
+  const ordem = document.getElementById('ordem-receber')?.value || '';
+  const busca = (document.getElementById('busca-receber')?.value || '').toLowerCase();
+  let items = filtro ? appData.receber.filter(r=>r.status===filtro) : [...appData.receber];
+  if (busca) items = items.filter(r=>(r.cliente||'').toLowerCase().includes(busca)||(r.os||'').toLowerCase().includes(busca)||(r.desc||'').toLowerCase().includes(busca));
+  if (ordem==='venc-asc') items.sort((a,b)=>a.venc.localeCompare(b.venc));
+  else if (ordem==='venc-desc') items.sort((a,b)=>b.venc.localeCompare(a.venc));
+  else if (ordem==='valor-desc') items.sort((a,b)=>b.valor-a.valor);
+  else if (ordem==='valor-asc') items.sort((a,b)=>a.valor-b.valor);
+  else if (ordem==='cliente-asc') items.sort((a,b)=>(a.cliente||'').localeCompare(b.cliente||''));
   const tb = document.getElementById('tbody-receber');
   if (!items.length) { tb.innerHTML = '<tr><td colspan="8" class="empty"><i class="ti ti-inbox"></i><br>Nenhum registro encontrado</td></tr>'; return; }
   tb.innerHTML = items.map(r => {
@@ -1068,9 +1094,17 @@ function renderReceber() {
 function renderPagar() {
   const filtro = document.getElementById('filtro-pagar').value;
   const centro = document.getElementById('filtro-centro').value;
-  let items = appData.pagar;
+  const ordem = document.getElementById('ordem-pagar')?.value || '';
+  const busca = (document.getElementById('busca-pagar')?.value || '').toLowerCase();
+  let items = [...appData.pagar];
   if (filtro) items = items.filter(p=>p.status===filtro);
   if (centro) items = items.filter(p=>p.centro===centro);
+  if (busca) items = items.filter(p=>(p.forn||'').toLowerCase().includes(busca)||(p.desc||'').toLowerCase().includes(busca)||(p.doc||'').toLowerCase().includes(busca));
+  if (ordem==='venc-asc') items.sort((a,b)=>a.venc.localeCompare(b.venc));
+  else if (ordem==='venc-desc') items.sort((a,b)=>b.venc.localeCompare(a.venc));
+  else if (ordem==='valor-desc') items.sort((a,b)=>b.valor-a.valor);
+  else if (ordem==='valor-asc') items.sort((a,b)=>a.valor-b.valor);
+  else if (ordem==='forn-asc') items.sort((a,b)=>(a.forn||'').localeCompare(b.forn||''));
   const tb = document.getElementById('tbody-pagar');
   if (!items.length) { tb.innerHTML = '<tr><td colspan="8" class="empty"><i class="ti ti-inbox"></i><br>Nenhum registro encontrado</td></tr>'; return; }
   tb.innerHTML = items.map(p=>`
@@ -1846,4 +1880,5 @@ carregarDados();
 
 </body>
 </html>
+
 
