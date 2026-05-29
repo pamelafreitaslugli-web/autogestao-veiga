@@ -100,6 +100,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
 .badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;white-space:nowrap}
 .badge.pago,.badge.recebido{background:var(--green-light);color:var(--green-text)}
 .badge.pendente{background:var(--amber-light);color:var(--amber-text)}
+.badge.parcial{background:var(--blue-light);color:var(--blue-text)}
 .badge.vencido{background:var(--red-light);color:var(--red-text)}
 .badge.os{background:var(--blue-light);color:var(--blue-text)}
 .badge.fornecedores{background:var(--green-light);color:var(--green-text)}
@@ -699,7 +700,8 @@ async function carregarDados() {
       taxaAntecipacao: r.taxa_antecipacao ? Number(r.taxa_antecipacao) : null,
       numParcelas: r.num_parcelas||null,
       parcelas: r.parcelas||null,
-      banco: r.banco||''
+      banco: r.banco||'',
+      pagamentos: r.pagamentos||[]
     }));
     appData.pagar = (pagar||[]).map(p => ({
       id: p.id, forn: p.forn||'', desc: p.descricao||'', centro: p.centro||'fornecedores',
@@ -737,6 +739,7 @@ async function salvarReceber(entry) {
     data: entry.data, venc: entry.venc, valor: entry.valor,
     forma: entry.forma, status: entry.status, obs: entry.obs,
     banco: entry.banco||null,
+    pagamentos: entry.pagamentos||[],
     valor_liquido: entry.valorLiquido||null,
     desconto_maquininha: entry.descontoMaquininha||null,
     taxa_maquininha: entry.taxaMaquininha||null,
@@ -1115,7 +1118,11 @@ function renderReceber() {
       : fmtDate(r.venc);
     const valorDisplay = temParcelas
       ? `<span style="font-size:11px;color:var(--text-secondary)">${parcsRecebidas}/${totalParcs} recebidas</span><br>${fmt(r.valor)}`
-      : fmt(r.valor);
+      : (() => {
+          const tPago = (r.pagamentos||[]).reduce((s,p)=>s+p.valor,0);
+          if (tPago > 0) return `${fmt(r.valor)}<br><span style="font-size:11px;color:var(--green)">Recebido: ${fmt(tPago)}</span><br><span style="font-size:11px;color:${r.valor-tPago>0?'var(--amber)':'var(--green)'}">Saldo: ${fmt(Math.max(0,r.valor-tPago))}</span>`;
+          return fmt(r.valor);
+        })();
     const liquido = r.valorLiquido ? `<br><span style="font-size:11px;color:var(--text-secondary)">Líq: ${fmt(r.valorLiquido)}</span>` : '';
     return `<tr>
       <td>${fmtDate(r.data)}</td>
@@ -1126,7 +1133,8 @@ function renderReceber() {
       <td style="font-weight:600;color:var(--green)">${valorDisplay}${liquido}</td>
       <td><span class="badge ${r.status}">${r.status}</span>${r.banco?`<br><span style="font-size:11px;color:var(--text-secondary)">${r.banco}</span>`:''}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap">
-        ${r.status!=='recebido'?`<button class="btn sm primary" onclick="abrirBaixaReceber(${r.id})"><i class="ti ti-check"></i> Baixar</button>`:''}
+        <button class="btn sm primary" onclick="abrirPagamentoParcial(${r.id})" title="Registrar pagamento"><i class="ti ti-cash"></i> Pagar</button>
+        ${r.status!=='recebido'&&r.forma!=='boleto'&&!(r.parcelas&&r.parcelas.length)?`<button class="btn sm" onclick="abrirBaixaReceber(${r.id})" title="Baixa simples"><i class="ti ti-check"></i></button>`:''}
         <button class="btn sm" onclick="editarReceber(${r.id})" title="Editar"><i class="ti ti-pencil"></i></button>
         <button class="btn sm danger" onclick="excluir('receber',${r.id})"><i class="ti ti-trash"></i></button>
       </td>
@@ -1904,9 +1912,200 @@ function salvarEdicaoPagar() {
   renderPagar(); renderDashboard();
 }
 
+// ============================================================
+// PAGAMENTOS PARCIAIS
+// ============================================================
+let ppId = null;
+
+function abrirPagamentoParcial(id) {
+  const r = appData.receber.find(x=>x.id===id);
+  if (!r) return;
+  ppId = id;
+
+  // Inicializa array de pagamentos se não existir
+  if (!r.pagamentos) r.pagamentos = [];
+
+  // Info do cliente
+  document.getElementById('pp-info').innerHTML = `
+    <strong>${r.cliente}</strong> — ${r.desc}
+    <br><span style="font-size:12px;color:var(--text-secondary)">${r.os} | Valor total: <strong style="color:var(--green)">${fmt(r.valor)}</strong></span>`;
+
+  // Histórico
+  const hist = document.getElementById('pp-historico');
+  const histWrap = document.getElementById('pp-historico-wrap');
+  if (r.pagamentos.length > 0) {
+    histWrap.style.display = 'block';
+    hist.innerHTML = r.pagamentos.map((p,i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--green-light);border-radius:var(--radius-md);margin-bottom:6px;font-size:13px">
+        <i class="ti ti-circle-check" style="color:var(--green);font-size:16px"></i>
+        <div style="flex:1">
+          <strong style="color:var(--green-text)">${fmt(p.valor)}</strong>
+          <span style="color:var(--text-secondary);margin-left:8px">${FORMA_LABELS[p.forma]||p.forma}</span>
+          ${p.obs?`<span style="color:var(--text-secondary);margin-left:8px">— ${p.obs}</span>`:''}
+        </div>
+        <span style="font-size:12px;color:var(--text-secondary)">${fmtDate(p.data)}</span>
+        <button class="btn sm danger" onclick="removerPagamento(${id},${i})"><i class="ti ti-trash"></i></button>
+      </div>`).join('');
+  } else {
+    histWrap.style.display = 'none';
+  }
+
+  // Preenche data default
+  document.getElementById('pp-data').value = today();
+  document.getElementById('pp-valor').value = '';
+  document.getElementById('pp-obs').value = '';
+
+  atualizarSaldoPP();
+  openModal('modal-pagamento-parcial');
+}
+
+function getTotalPago(r) {
+  return (r.pagamentos||[]).reduce((s,p)=>s+p.valor, 0);
+}
+
+function atualizarSaldoPP() {
+  const r = appData.receber.find(x=>x.id===ppId);
+  if (!r) return;
+  const totalPago = getTotalPago(r);
+  const esteValor = parseFloat(document.getElementById('pp-valor')?.value)||0;
+  const saldo = r.valor - totalPago - esteValor;
+
+  document.getElementById('pp-total').textContent = fmt(r.valor);
+  document.getElementById('pp-recebido').textContent = fmt(totalPago);
+  document.getElementById('pp-este').textContent = esteValor > 0 ? fmt(esteValor) : '—';
+  const saldoEl = document.getElementById('pp-saldo');
+  saldoEl.textContent = fmt(Math.max(0, saldo));
+  saldoEl.style.color = saldo <= 0 ? 'var(--green)' : 'var(--amber)';
+
+  // Botão quitar tudo — preenche saldo automaticamente
+  document.getElementById('pp-btn-quitacao').style.display = saldo > 0 ? 'inline-flex' : 'none';
+}
+
+function registrarPagamentoParcial() {
+  const r = appData.receber.find(x=>x.id===ppId);
+  if (!r) return;
+  const valor = parseFloat(document.getElementById('pp-valor').value)||0;
+  if (!valor || valor <= 0) { alert('Informe um valor válido.'); return; }
+  if (!r.pagamentos) r.pagamentos = [];
+
+  const pg = {
+    valor,
+    forma: document.getElementById('pp-forma').value,
+    data: document.getElementById('pp-data').value || today(),
+    obs: document.getElementById('pp-obs').value || ''
+  };
+  r.pagamentos.push(pg);
+
+  const totalPago = getTotalPago(r);
+  if (totalPago >= r.valor) {
+    r.status = 'recebido';
+  } else if (totalPago > 0) {
+    r.status = 'parcial';
+  }
+
+  atualizarPagamentosSupabase(r);
+  closeModal('modal-pagamento-parcial');
+  renderReceber(); renderDashboard();
+}
+
+function quitarTudo() {
+  const r = appData.receber.find(x=>x.id===ppId);
+  if (!r) return;
+  const totalPago = getTotalPago(r);
+  const saldo = r.valor - totalPago;
+  if (saldo <= 0) { alert('Esta OS já está totalmente quitada.'); return; }
+
+  if (!r.pagamentos) r.pagamentos = [];
+  r.pagamentos.push({
+    valor: saldo,
+    forma: document.getElementById('pp-forma').value,
+    data: document.getElementById('pp-data').value || today(),
+    obs: 'Quitação total'
+  });
+  r.status = 'recebido';
+
+  atualizarPagamentosSupabase(r);
+  closeModal('modal-pagamento-parcial');
+  renderReceber(); renderDashboard();
+}
+
+function removerPagamento(id, idx) {
+  const r = appData.receber.find(x=>x.id===id);
+  if (!r) return;
+  if (!confirm('Remover este pagamento?')) return;
+  r.pagamentos.splice(idx, 1);
+  const totalPago = getTotalPago(r);
+  if (totalPago >= r.valor) r.status = 'recebido';
+  else if (totalPago > 0) r.status = 'parcial';
+  else r.status = 'pendente';
+  atualizarPagamentosSupabase(r);
+  abrirPagamentoParcial(id); // reopen modal refreshed
+  renderReceber(); renderDashboard();
+}
+
+async function atualizarPagamentosSupabase(r) {
+  try {
+    await sbFetch(`receber?id=eq.${r.id}`, 'PATCH', {
+      pagamentos: r.pagamentos,
+      status: r.status
+    });
+    mostrarStatusDB('conectado');
+  } catch(e) { console.error(e); }
+}
+
 // Init — carrega dados do Supabase
 carregarDados();
 </script>
+
+<!-- MODAL: PAGAMENTO PARCIAL -->
+<div class="modal-bg" id="modal-pagamento-parcial">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-cash"></i> Registrar Pagamento</span>
+      <button class="close-btn" onclick="closeModal('modal-pagamento-parcial')">×</button>
+    </div>
+    <div id="pp-info" style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px;margin-bottom:16px;font-size:13px"></div>
+
+    <!-- Histórico de pagamentos -->
+    <div id="pp-historico-wrap" style="margin-bottom:16px;display:none">
+      <p style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Pagamentos anteriores</p>
+      <div id="pp-historico"></div>
+    </div>
+
+    <!-- Novo pagamento -->
+    <p style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:10px">Registrar novo pagamento:</p>
+    <div class="form-row three">
+      <div class="form-group"><label>Valor (R$)</label><input type="number" id="pp-valor" placeholder="0,00" step="0.01" min="0" oninput="atualizarSaldoPP()"></div>
+      <div class="form-group"><label>Forma</label>
+        <select id="pp-forma">
+          <option value="pix">PIX</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="debito">Cartão débito</option>
+          <option value="credito">Cartão crédito</option>
+          <option value="transferencia">Transferência</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Data</label><input type="date" id="pp-data"></div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group"><label>Observação</label><input id="pp-obs" placeholder="Ex.: Adiantamento, sinal, parcela 1..."></div>
+    </div>
+
+    <!-- Resumo saldo -->
+    <div id="pp-resumo" style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px;margin-bottom:14px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Valor total da OS:</span><span id="pp-total" style="font-weight:600"></span></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Total já recebido:</span><span id="pp-recebido" style="font-weight:600;color:var(--green)"></span></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Este pagamento:</span><span id="pp-este" style="font-weight:600;color:var(--blue)"></span></div>
+      <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:6px;margin-top:4px"><span style="font-weight:600">Saldo restante:</span><span id="pp-saldo" style="font-weight:700;font-size:15px"></span></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn primary" onclick="registrarPagamentoParcial()"><i class="ti ti-check"></i> Registrar pagamento</button>
+      <button class="btn" style="background:var(--green-light);color:var(--green-text);border-color:var(--green)" id="pp-btn-quitacao" onclick="quitarTudo()"><i class="ti ti-check-circle"></i> Quitar tudo</button>
+      <button class="btn" onclick="closeModal('modal-pagamento-parcial')">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL: EDITAR RECEBER -->
 <div class="modal-bg" id="modal-editar-receber">
