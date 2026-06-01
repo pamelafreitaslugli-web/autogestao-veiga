@@ -1089,8 +1089,20 @@ function renderReceber() {
   if (filtrando && items.length > 0) {
     const totBruto = items.reduce((s,r)=>s+r.valor,0);
     const totLiq = items.reduce((s,r)=>s+(r.valorLiquido||r.valor),0);
-    const totRecebido = items.filter(r=>r.status==='recebido').reduce((s,r)=>s+r.valor,0);
-    const totPendente = items.filter(r=>r.status!=='recebido').reduce((s,r)=>s+r.valor,0);
+    // Recebido = soma dos pagamentos parciais + valor total das OS totalmente recebidas (sem pagamentos parciais)
+    const totRecebido = items.reduce((s,r)=>{
+      const pgtos = (r.pagamentos||[]).reduce((a,p)=>a+p.valor,0);
+      if (pgtos > 0) return s + pgtos;
+      if (r.status==='recebido') return s + r.valor;
+      return s;
+    }, 0);
+    // Pendente = saldo restante de cada OS
+    const totPendente = items.reduce((s,r)=>{
+      if (r.status==='recebido' && !(r.pagamentos||[]).length) return s;
+      const pgtos = (r.pagamentos||[]).reduce((a,p)=>a+p.valor,0);
+      const saldo = r.valor - pgtos;
+      return s + Math.max(0, saldo);
+    }, 0);
     const temDesconto = items.some(r=>r.valorLiquido);
     tot.style.display = 'flex';
     tot.innerHTML = `
@@ -1100,9 +1112,9 @@ function renderReceber() {
         <span>Total bruto: <strong style="color:var(--green)">${fmt(totBruto)}</strong></span>
         ${temDesconto ? `<span style="color:var(--border-medium)">|</span><span>Líquido estimado: <strong style="color:var(--green-dark)">${fmt(totLiq)}</strong></span>` : ''}
         <span style="color:var(--border-medium)">|</span>
-        <span>Recebido: <strong style="color:var(--green)">${fmt(totRecebido)}</strong></span>
+        <span>Já recebido: <strong style="color:var(--green)">${fmt(totRecebido)}</strong></span>
         <span style="color:var(--border-medium)">|</span>
-        <span>Pendente: <strong style="color:var(--amber)">${fmt(totPendente)}</strong></span>
+        <span>Saldo pendente: <strong style="color:var(--amber)">${fmt(totPendente)}</strong></span>
       </div>`;
   } else {
     tot.style.display = 'none';
@@ -2158,3 +2170,5 @@ carregarDados();
 
 </body>
 </html>
+
+
