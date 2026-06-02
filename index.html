@@ -789,7 +789,12 @@ async function atualizarRegistroReceber(id, dados) {
   await sbFetch(`receber?id=eq.${id}`, 'PATCH', {
     cliente: dados.cliente, os: dados.os, descricao: dados.desc,
     data: dados.data, venc: dados.venc, valor: dados.valor,
-    forma: dados.forma, obs: dados.obs, banco: dados.banco||null
+    forma: dados.forma, obs: dados.obs, banco: dados.banco||null,
+    taxa_maquininha: dados.taxaMaquininha||null,
+    taxa_antecipacao: dados.taxaAntecipacao||null,
+    num_parcelas: dados.numParcelas||null,
+    desconto_maquininha: dados.descontoMaquininha||null,
+    valor_liquido: dados.valorLiquido||null
   });
   mostrarStatusDB('conectado');
 }
@@ -1261,6 +1266,8 @@ function excluir(tipo, id) {
   deletarRegistro(tipo, id).catch(e=>alert('Erro ao excluir: '+e.message));
   tipo==='receber' ? renderReceber() : renderPagar();
   renderDashboard();
+  if (document.getElementById('panel-livrocaixa').classList.contains('active')) renderLC();
+  if (document.getElementById('panel-custos').classList.contains('active')) renderCC();
 }
 
 // ============================================================
@@ -1322,6 +1329,8 @@ function addReceber() {
   ['r-cliente','r-os','r-desc','r-data','r-valor','r-obs','r-venc-simples'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   closeModal('modal-add-receber');
   renderReceber(); renderDashboard();
+  // Also refresh LC if active
+  if (document.getElementById('panel-livrocaixa').classList.contains('active')) renderLC();
 }
 
 function addPagar(overrides={}) {
@@ -1345,6 +1354,7 @@ function addPagar(overrides={}) {
   ['p-forn','p-desc','p-data','p-venc','p-valor','p-doc','p-obs','p-barras','p-banco'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   closeModal('modal-add-pagar');
   renderPagar(); renderDashboard();
+  if (document.getElementById('panel-livrocaixa').classList.contains('active')) renderLC();
 }
 
 // ============================================================
@@ -1853,6 +1863,28 @@ function resetDoc() {
 // ============================================================
 // EDITAR LANÇAMENTOS
 // ============================================================
+function toggleFormaEditar() {
+  const f = document.getElementById('er-forma').value;
+  const bloco = document.getElementById('er-bloco-cartao');
+  bloco.style.display = ['credito','debito'].includes(f) ? 'block' : 'none';
+  recalcularCartaoEditar();
+}
+
+function recalcularCartaoEditar() {
+  const valor = parseFloat(document.getElementById('er-valor')?.value) || 0;
+  const f = document.getElementById('er-forma').value;
+  if (!['credito','debito'].includes(f) || !valor) return;
+  const parc = parseInt(document.getElementById('er-parcelas').value) || 1;
+  const taxa = parseFloat(document.getElementById('er-taxa').value) || 0;
+  const antecip = f === 'credito' ? (parseFloat(document.getElementById('er-antecip').value) || 0) : 0;
+  const descParc = valor * (taxa/100) * parc;
+  const descAntecip = valor * (antecip/100);
+  const liquido = valor - descParc - descAntecip;
+  document.getElementById('er-bruto').textContent = fmt(valor);
+  document.getElementById('er-desconto').textContent = '- ' + fmt(descParc + descAntecip);
+  document.getElementById('er-liquido').textContent = fmt(liquido);
+}
+
 function editarReceber(id) {
   const r = appData.receber.find(x=>x.id===id);
   if (!r) return;
@@ -1865,9 +1897,18 @@ function editarReceber(id) {
   document.getElementById('er-forma').value = r.forma || 'pix';
   document.getElementById('er-banco').value = r.banco || '';
   document.getElementById('er-obs').value = r.obs || '';
-  // venc
   const vencEl = document.getElementById('er-venc');
   vencEl.value = r.venc || today();
+  // Load cartao fields if applicable
+  if (['credito','debito'].includes(r.forma)) {
+    document.getElementById('er-parcelas').value = r.numParcelas || 1;
+    document.getElementById('er-taxa').value = r.taxaMaquininha || '';
+    document.getElementById('er-antecip').value = r.taxaAntecipacao || '';
+    document.getElementById('er-bloco-cartao').style.display = 'block';
+    setTimeout(recalcularCartaoEditar, 50);
+  } else {
+    document.getElementById('er-bloco-cartao').style.display = 'none';
+  }
   openModal('modal-editar-receber');
 }
 
@@ -1884,9 +1925,23 @@ function salvarEdicaoReceber() {
   r.banco = document.getElementById('er-banco')?.value || '';
   r.obs = document.getElementById('er-obs').value;
   r.venc = document.getElementById('er-venc').value || today();
+  // Update cartao fields if applicable
+  if (['credito','debito'].includes(r.forma)) {
+    const parc = parseInt(document.getElementById('er-parcelas').value) || 1;
+    const taxa = parseFloat(document.getElementById('er-taxa').value) || 0;
+    const antecip = parseFloat(document.getElementById('er-antecip').value) || 0;
+    const descParc = r.valor * (taxa/100) * parc;
+    const descAntecip = r.valor * (antecip/100);
+    r.taxaMaquininha = taxa;
+    r.taxaAntecipacao = antecip;
+    r.numParcelas = parc;
+    r.descontoMaquininha = descParc + descAntecip;
+    r.valorLiquido = r.valor - descParc - descAntecip;
+  }
   atualizarRegistroReceber(id, r).catch(e=>alert('Erro ao salvar: '+e.message));
   closeModal('modal-editar-receber');
   renderReceber(); renderDashboard();
+  if (document.getElementById('panel-livrocaixa').classList.contains('active')) renderLC();
 }
 
 function editarPagar(id) {
@@ -1923,6 +1978,7 @@ function salvarEdicaoPagar() {
   atualizarRegistroPagar(id, p).catch(e=>alert('Erro ao salvar: '+e.message));
   closeModal('modal-editar-pagar');
   renderPagar(); renderDashboard();
+  if (document.getElementById('panel-livrocaixa').classList.contains('active')) renderLC();
 }
 
 // ============================================================
@@ -2019,6 +2075,7 @@ function registrarPagamentoParcial() {
   atualizarPagamentosSupabase(r);
   closeModal('modal-pagamento-parcial');
   renderReceber(); renderDashboard();
+  if (document.getElementById('panel-livrocaixa').classList.contains('active')) renderLC();
 }
 
 function quitarTudo() {
@@ -2130,8 +2187,21 @@ carregarDados();
     <div class="form-row"><div class="form-group"><label>Data de emissão</label><input type="date" id="er-data"></div><div class="form-group"><label>Valor (R$)</label><input type="number" id="er-valor" step="0.01" min="0"></div></div>
     <div class="form-row"><div class="form-group"><label>Data de vencimento / recebimento</label><input type="date" id="er-venc"></div>
     <div class="form-group"><label>Forma de pagamento</label>
-      <select id="er-forma"><option value="pix">PIX</option><option value="dinheiro">Dinheiro</option><option value="debito">Cartão débito (D+1)</option><option value="credito">Cartão crédito</option><option value="boleto">Boleto</option><option value="transferencia">Transferência</option></select>
+      <select id="er-forma" onchange="toggleFormaEditar()"><option value="pix">PIX</option><option value="dinheiro">Dinheiro</option><option value="debito">Cartão débito (D+1)</option><option value="credito">Cartão crédito</option><option value="boleto">Boleto</option><option value="transferencia">Transferência</option></select>
     </div></div>
+    <div id="er-bloco-cartao" style="display:none">
+      <div style="background:var(--purple-light);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--purple-text)"><i class="ti ti-info-circle"></i> Atualize as taxas da maquininha se necessário.</div>
+      <div class="form-row three">
+        <div class="form-group"><label>N° parcelas</label><input type="number" id="er-parcelas" min="1" max="24" value="1" oninput="recalcularCartaoEditar()"></div>
+        <div class="form-group"><label>Taxa por parcela (%)</label><input type="number" id="er-taxa" step="0.01" min="0" oninput="recalcularCartaoEditar()"></div>
+        <div class="form-group"><label>Taxa antecipação (%)</label><input type="number" id="er-antecip" step="0.01" min="0" oninput="recalcularCartaoEditar()"></div>
+      </div>
+      <div id="er-resumo-cartao" style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:10px 12px;font-size:13px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Valor bruto:</span><span id="er-bruto" style="font-weight:600"></span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text-secondary)">Desconto total:</span><span id="er-desconto" style="color:var(--red);font-weight:600"></span></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:6px;margin-top:4px"><span style="font-weight:600">Líquido na conta:</span><span id="er-liquido" style="font-weight:700;color:var(--green);font-size:15px"></span></div>
+      </div>
+    </div>
     <div class="form-row"><div class="form-group"><label>Banco de recebimento</label>
       <select id="er-banco">
         <option value="">— Não informado —</option>
@@ -2170,5 +2240,3 @@ carregarDados();
 
 </body>
 </html>
-
-
