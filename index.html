@@ -702,13 +702,15 @@ async function carregarDados() {
       numParcelas: r.num_parcelas||null,
       parcelas: r.parcelas||null,
       banco: r.banco||'',
-      pagamentos: r.pagamentos||[]
+      pagamentos: r.pagamentos||[],
+      dataRecebimento: r.data_recebimento||null
     }));
     appData.pagar = (pagar||[]).map(p => ({
       id: p.id, forn: p.forn||'', desc: p.descricao||'', centro: p.centro||'fornecedores',
       data: p.data||today(), venc: p.venc||today(), valor: Number(p.valor)||0,
       doc: p.doc||'', obs: p.obs||'', status: p.status||'pendente',
-      barras: p.barras||'', banco: p.banco||''
+      barras: p.barras||'', banco: p.banco||'',
+      dataPagamento: p.data_pagamento||null
     }));
     renderDashboard();
     mostrarStatusDB('conectado');
@@ -766,15 +768,17 @@ async function salvarPagar(entry) {
   mostrarStatusDB('conectado');
 }
 
-async function atualizarStatus(tabela, id, status) {
+async function atualizarStatus(tabela, id, status, extra) {
   mostrarStatusDB('salvando');
-  await sbFetch(`${tabela}?id=eq.${id}`, 'PATCH', { status });
+  await sbFetch(`${tabela}?id=eq.${id}`, 'PATCH', Object.assign({ status }, extra||{}));
   mostrarStatusDB('conectado');
 }
 
-async function atualizarParcelas(id, parcelas, statusGeral) {
+async function atualizarParcelas(id, parcelas, statusGeral, dataRecebimento) {
   mostrarStatusDB('salvando');
-  await sbFetch(`receber?id=eq.${id}`, 'PATCH', { parcelas, status: statusGeral });
+  const body = { parcelas, status: statusGeral };
+  if (dataRecebimento) body.data_recebimento = dataRecebimento;
+  await sbFetch(`receber?id=eq.${id}`, 'PATCH', body);
   mostrarStatusDB('conectado');
 }
 
@@ -1037,8 +1041,9 @@ function abrirBaixaReceber(id) {
         const cb = document.getElementById(`parc-check-${i}`);
         if (cb && cb.checked && p.status!=='recebido') { p.status='recebido'; p.dataRecebimento=document.getElementById('baixa-data').value||today(); alguma=true; }
       });
-      if (r.parcelas.every(p=>p.status==='recebido')) r.status='recebido';
-      if (alguma) { atualizarParcelas(r.id, r.parcelas, r.status).catch(e=>console.error(e)); closeModal('modal-baixa-receber'); renderReceber(); renderDashboard(); }
+      const dataBaixa = document.getElementById('baixa-data').value||today();
+      if (r.parcelas.every(p=>p.status==='recebido')) { r.status='recebido'; r.dataRecebimento=dataBaixa; }
+      if (alguma) { atualizarParcelas(r.id, r.parcelas, r.status, r.dataRecebimento).catch(e=>console.error(e)); closeModal('modal-baixa-receber'); renderReceber(); renderDashboard(); }
       else alert('Selecione ao menos uma parcela.');
     };
   } else if (['debito','credito'].includes(r.forma)) {
@@ -1050,16 +1055,18 @@ function abrirBaixaReceber(id) {
       </div>
       <div class="form-row"><div class="form-group"><label>Data da compensação (D+1)</label><input type="date" id="baixa-data" value="${today()}"></div></div>`;
     document.getElementById('btn-confirmar-baixa').onclick = () => {
-      r.status='recebido'; r.dataRecebimento=document.getElementById('baixa-data').value||today();
-      atualizarStatus('receber', r.id, 'recebido').catch(e=>console.error(e));
+      const dataRec = document.getElementById('baixa-data').value||today();
+      r.status='recebido'; r.dataRecebimento=dataRec;
+      atualizarStatus('receber', r.id, 'recebido', { data_recebimento: dataRec }).catch(e=>console.error(e));
       closeModal('modal-baixa-receber'); renderReceber(); renderDashboard();
     };
   } else {
     campos.innerHTML = `<div class="form-row"><div class="form-group"><label>Data do recebimento</label><input type="date" id="baixa-data" value="${today()}"></div><div class="form-group"><label>Valor recebido (R$)</label><input type="number" id="baixa-valor" value="${r.valor}" step="0.01"></div></div>`;
     document.getElementById('btn-confirmar-baixa').onclick = () => {
-      r.status='recebido'; r.dataRecebimento=document.getElementById('baixa-data').value||today();
+      const dataRec = document.getElementById('baixa-data').value||today();
+      r.status='recebido'; r.dataRecebimento=dataRec;
       r.valorRecebido=parseFloat(document.getElementById('baixa-valor').value)||r.valor;
-      atualizarStatus('receber', r.id, 'recebido').catch(e=>console.error(e));
+      atualizarStatus('receber', r.id, 'recebido', { data_recebimento: dataRec }).catch(e=>console.error(e));
       closeModal('modal-baixa-receber'); renderReceber(); renderDashboard();
     };
   }
@@ -1243,8 +1250,10 @@ function confirmarLiquidacao(tipo, id) {
   document.getElementById('confirm-date').value = today();
   document.getElementById('confirm-valor').value = item.valor;
   document.getElementById('confirm-btn').onclick = () => {
+    const dataPag = document.getElementById('confirm-date').value || today();
     item.status = 'pago';
-    atualizarStatus('pagar', item.id, 'pago').catch(e=>console.error(e));
+    item.dataPagamento = dataPag;
+    atualizarStatus('pagar', item.id, 'pago', { data_pagamento: dataPag }).catch(e=>console.error(e));
     closeModal('modal-confirm');
     renderPagar();
     renderDashboard();
@@ -1365,8 +1374,8 @@ function renderLC() {
   const ano = parseInt(document.getElementById('lc-ano').value);
   const inP = d => { const dt = new Date(d+'T00:00:00'); return dt.getMonth()===mes && dt.getFullYear()===ano; };
 
-  const entradas = appData.receber.filter(r=>r.status==='recebido'&&inP(r.data));
-  const saidas = appData.pagar.filter(p=>p.status==='pago'&&inP(p.data));
+  const entradas = appData.receber.filter(r=>r.status==='recebido'&&inP(r.dataRecebimento||r.data));
+  const saidas = appData.pagar.filter(p=>p.status==='pago'&&inP(p.dataPagamento||p.data));
   const totE = entradas.reduce((s,r)=>s+r.valor,0);
   const totS = saidas.reduce((s,p)=>s+p.valor,0);
   const saldo = totE - totS;
@@ -1377,8 +1386,8 @@ function renderLC() {
     <div class="metric-card"><div class="metric-label">Resultado Líquido</div><div class="metric-value ${saldo>=0?'green':'red'}">${fmt(saldo)}</div></div>`;
 
   const all = [
-    ...entradas.map(r=>({data:r.data,desc:r.cliente+' — '+r.desc,tipo:'E',valor:r.valor})),
-    ...saidas.map(p=>({data:p.data,desc:p.forn+' — '+p.desc,tipo:'S',valor:p.valor}))
+    ...entradas.map(r=>({data:r.dataRecebimento||r.data,desc:r.cliente+' — '+r.desc,tipo:'E',valor:r.valor})),
+    ...saidas.map(p=>({data:p.dataPagamento||p.data,desc:p.forn+' — '+p.desc,tipo:'S',valor:p.valor}))
   ].sort((a,b)=>a.data.localeCompare(b.data));
 
   if (!all.length) {
@@ -1432,8 +1441,8 @@ function printLC() {
   const ano = parseInt(document.getElementById('lc-ano').value);
   const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const inP = d => { const dt = new Date(d+'T00:00:00'); return dt.getMonth()===mes && dt.getFullYear()===ano; };
-  const entradas = appData.receber.filter(r=>r.status==='recebido'&&inP(r.data));
-  const saidas = appData.pagar.filter(p=>p.status==='pago'&&inP(p.data));
+  const entradas = appData.receber.filter(r=>r.status==='recebido'&&inP(r.dataRecebimento||r.data));
+  const saidas = appData.pagar.filter(p=>p.status==='pago'&&inP(p.dataPagamento||p.data));
   const totE = entradas.reduce((s,r)=>s+r.valor,0);
   const totS = saidas.reduce((s,p)=>s+p.valor,0);
   const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0};
@@ -1454,9 +1463,9 @@ function printLC() {
   <table><tr><th>Centro</th><th>Valor</th><th>%</th></tr>
   ${Object.entries(ccMap).map(([k,v])=>`<tr><td>${CC_NAMES[k]}</td><td>${fmt(v)}</td><td>${totS>0?Math.round(v/totS*100):0}%</td></tr>`).join('')}</table>
   <h2>Entradas</h2><table><tr><th>Data</th><th>Cliente</th><th>Descrição</th><th>Valor</th></tr>
-  ${entradas.map(r=>`<tr><td>${fmtDate(r.data)}</td><td>${r.cliente}</td><td>${r.desc}</td><td class="e">${fmt(r.valor)}</td></tr>`).join('')||'<tr><td colspan="4">Nenhuma</td></tr>'}</table>
+  ${entradas.map(r=>`<tr><td>${fmtDate(r.dataRecebimento||r.data)}</td><td>${r.cliente}</td><td>${r.desc}</td><td class="e">${fmt(r.valor)}</td></tr>`).join('')||'<tr><td colspan="4">Nenhuma</td></tr>'}</table>
   <h2>Saídas</h2><table><tr><th>Data</th><th>Fornecedor</th><th>Descrição</th><th>Centro</th><th>Valor</th></tr>
-  ${saidas.map(p=>`<tr><td>${fmtDate(p.data)}</td><td>${p.forn}</td><td>${p.desc}</td><td>${CC_NAMES[p.centro]}</td><td class="s">${fmt(p.valor)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma</td></tr>'}</table>
+  ${saidas.map(p=>`<tr><td>${fmtDate(p.dataPagamento||p.data)}</td><td>${p.forn}</td><td>${p.desc}</td><td>${CC_NAMES[p.centro]}</td><td class="s">${fmt(p.valor)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma</td></tr>'}</table>
   </body></html>`;
   const w = window.open('','_blank');
   w.document.write(html);
