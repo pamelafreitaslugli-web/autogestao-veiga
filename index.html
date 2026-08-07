@@ -1347,18 +1347,19 @@ function addPagar(overrides={}) {
   const desc = (overrides.desc || document.getElementById('p-desc').value || '').trim();
   if (!forn || !desc) { alert('Preencha ao menos o fornecedor e a descrição.'); return; }
   const id = appData.pagar.length ? Math.max(...appData.pagar.map(p=>p.id))+1 : 1;
-  appData.pagar.push({
+  const entry = {
     id, forn, desc,
     centro: overrides.centro || document.getElementById('p-centro').value,
     data: overrides.data || document.getElementById('p-data').value || today(),
     venc: overrides.venc || document.getElementById('p-venc').value || today(),
     valor: overrides.valor || parseFloat(document.getElementById('p-valor').value) || 0,
     doc: overrides.doc || document.getElementById('p-doc').value || '',
-    barras: ov.barras || document.getElementById('p-barras')?.value || '',
+    barras: overrides.barras || document.getElementById('p-barras')?.value || '',
     banco: document.getElementById('p-banco')?.value || '',
     obs: overrides.obs || document.getElementById('p-obs').value || '',
     status: 'pendente'
-  });
+  };
+  appData.pagar.push(entry);
   salvarPagar(entry).catch(e=>alert('Erro ao salvar: '+e.message));
   ['p-forn','p-desc','p-data','p-venc','p-valor','p-doc','p-obs','p-barras','p-banco'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   closeModal('modal-add-pagar');
