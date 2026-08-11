@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -1359,6 +1360,16 @@ function addPagar(overrides={}) {
     obs: overrides.obs || document.getElementById('p-obs').value || '',
     status: 'pendente'
   };
+  const duplicado = appData.pagar.some(p =>
+    p.forn.trim().toLowerCase() === forn.toLowerCase() &&
+    p.data === entry.data &&
+    Math.abs(p.valor - entry.valor) < 0.01 &&
+    (p.barras||'').trim() === (entry.barras||'').trim()
+  );
+  if (duplicado) {
+    const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${forn}\nData: ${entry.data}\nValor: ${fmt(entry.valor)}\n${entry.barras?'Código de barras: '+entry.barras:''}\n\nParece duplicado. Deseja incluir mesmo assim?`);
+    if (!seguir) return;
+  }
   appData.pagar.push(entry);
   salvarPagar(entry).catch(e=>alert('Erro ao salvar: '+e.message));
   ['p-forn','p-desc','p-data','p-venc','p-valor','p-doc','p-obs','p-barras','p-banco'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
