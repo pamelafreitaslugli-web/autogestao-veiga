@@ -1362,11 +1362,10 @@ function addPagar(overrides={}) {
   const duplicado = appData.pagar.some(p =>
     p.forn.trim().toLowerCase() === forn.toLowerCase() &&
     p.data === entry.data &&
-    Math.abs(p.valor - entry.valor) < 0.01 &&
-    (p.barras||'').trim() === (entry.barras||'').trim()
+    Math.abs(p.valor - entry.valor) < 0.01
   );
   if (duplicado) {
-    const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${forn}\nData: ${entry.data}\nValor: ${fmt(entry.valor)}\n${entry.barras?'Código de barras: '+entry.barras:''}\n\nParece duplicado. Deseja incluir mesmo assim?`);
+    const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${forn}\nData: ${entry.data}\nValor: ${fmt(entry.valor)}\n\nParece duplicado. Deseja incluir mesmo assim?`);
     if (!seguir) return;
   }
   appData.pagar.push(entry);
@@ -1830,11 +1829,10 @@ function lancarDoAI() {
     const duplicado = appData.pagar.some(p =>
       p.forn.trim().toLowerCase() === pEntry.forn.trim().toLowerCase() &&
       p.data === pEntry.data &&
-      Math.abs(p.valor - pEntry.valor) < 0.01 &&
-      (p.barras||'').trim() === (pEntry.barras||'').trim()
+      Math.abs(p.valor - pEntry.valor) < 0.01
     );
     if (duplicado) {
-      const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${pEntry.forn}\nData: ${pEntry.data}\nValor: ${fmt(pEntry.valor)}\n${pEntry.barras?'Código de barras: '+pEntry.barras:''}\n\nParece duplicado. Deseja incluir mesmo assim?`);
+      const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${pEntry.forn}\nData: ${pEntry.data}\nValor: ${fmt(pEntry.valor)}\n\nParece duplicado. Deseja incluir mesmo assim?`);
       if (!seguir) return;
     }
     appData.pagar.push(pEntry);
@@ -2270,5 +2268,6 @@ carregarDados();
 
 </body>
 </html>
+
 
 
