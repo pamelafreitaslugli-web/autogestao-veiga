@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -1828,6 +1827,16 @@ function lancarDoAI() {
       obs: aiData.observacoes || '',
       status: 'pendente'
     };
+    const duplicado = appData.pagar.some(p =>
+      p.forn.trim().toLowerCase() === pEntry.forn.trim().toLowerCase() &&
+      p.data === pEntry.data &&
+      Math.abs(p.valor - pEntry.valor) < 0.01 &&
+      (p.barras||'').trim() === (pEntry.barras||'').trim()
+    );
+    if (duplicado) {
+      const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${pEntry.forn}\nData: ${pEntry.data}\nValor: ${fmt(pEntry.valor)}\n${pEntry.barras?'Código de barras: '+pEntry.barras:''}\n\nParece duplicado. Deseja incluir mesmo assim?`);
+      if (!seguir) return;
+    }
     appData.pagar.push(pEntry);
     salvarPagar(pEntry).catch(e=>alert('Erro ao salvar: '+e.message));
   } else {
@@ -2261,3 +2270,5 @@ carregarDados();
 
 </body>
 </html>
+
+
