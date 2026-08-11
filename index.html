@@ -107,6 +107,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
 .badge.salario{background:var(--blue-light);color:var(--blue-text)}
 .badge.impostos{background:var(--amber-light);color:var(--amber-text)}
 .badge.fixas{background:var(--purple-light);color:var(--purple-text)}
+.badge.socio{background:var(--blue-light);color:var(--blue-text)}
 
 /* AI */
 .ai-result{background:var(--bg-secondary);border-radius:var(--radius-md);padding:16px;margin-top:14px;font-size:13px;line-height:1.7;border-left:3px solid var(--green)}
@@ -211,6 +212,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
     <button class="nav-btn" onclick="showPanel('livrocaixa',this)"><i class="ti ti-notebook"></i> Livro Caixa</button>
     <button class="nav-btn" onclick="showPanel('custos',this)"><i class="ti ti-chart-pie"></i> Centros de Custo</button>
     <button class="nav-btn" onclick="showPanel('documentos',this)"><i class="ti ti-file-scan"></i> Ler Documentos (IA)</button>
+    <button class="nav-btn" onclick="showPanel('conciliacao',this)"><i class="ti ti-arrows-left-right"></i> Conciliação Bancária</button>
   </nav>
 
   <div class="content">
@@ -311,6 +313,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
           <option value="salario">Salário/Pessoal</option>
           <option value="impostos">Impostos</option>
           <option value="fixas">Despesas Fixas</option>
+          <option value="socio">Retirada Sócio</option>
         </select>
         <select id="ordem-pagar" onchange="renderPagar()">
           <option value="">Ordenar por...</option>
@@ -407,6 +410,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
           <button onclick="filtrarCC('salario',this)">Salário/Pessoal</button>
           <button onclick="filtrarCC('impostos',this)">Impostos</button>
           <button onclick="filtrarCC('fixas',this)">Despesas Fixas</button>
+          <button onclick="filtrarCC('socio',this)">Retirada Sócio</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -471,10 +475,90 @@ tbody tr:hover td{background:var(--bg-secondary)}
       </div>
     </div>
 
+    <!-- ==================== CONCILIAÇÃO BANCÁRIA ==================== -->
+    <div class="panel" id="panel-conciliacao">
+      <div class="section-title"><i class="ti ti-arrows-left-right"></i> Conciliação Bancária</div>
+
+      <div class="card">
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
+          Envie o extrato bancário em formato <strong>OFX</strong> (arquivo padrão exportado pelo internet banking — mais preciso, pois traz data, valor e descrição de cada transação já estruturados). O sistema compara cada movimentação do extrato com os lançamentos de Contas a Receber e Contas a Pagar por <strong>valor</strong> e <strong>data</strong> (com tolerância de alguns dias, cobrindo o prazo de compensação).
+        </p>
+        <div class="upload-area" onclick="document.getElementById('conc-file-input').click()" id="conc-drop-zone">
+          <i class="ti ti-cloud-upload icon"></i>
+          <p>Clique para selecionar o arquivo do extrato</p>
+          <p class="small">Formato aceito: .OFX / .QFX</p>
+        </div>
+        <input type="file" id="conc-file-input" accept=".ofx,.qfx" style="display:none" onchange="handleExtratoFile(this)">
+        <div id="conc-file-name" style="font-size:12px;color:var(--text-secondary);margin-top:8px"></div>
+      </div>
+
+      <div id="conc-resultado" style="display:none">
+        <div class="metrics" id="conc-metrics"></div>
+        <div class="btn-row" style="margin-bottom:16px">
+          <button class="btn primary" onclick="printConciliacao()"><i class="ti ti-printer"></i> Gerar Relatório para Contabilidade</button>
+        </div>
+
+        <div class="card">
+          <div class="section-title" style="color:var(--green-text)"><i class="ti ti-circle-check"></i> Conciliados automaticamente</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data extrato</th><th>Descrição no extrato</th><th>Valor</th><th>Lançamento correspondente</th><th>Status no sistema</th></tr></thead>
+              <tbody id="tbody-conc-ok"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title" style="color:var(--red-text)"><i class="ti ti-alert-circle"></i> Transações do extrato sem lançamento correspondente</div>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Movimentações que passaram pelo banco mas não têm um lançamento com valor/data compatível no sistema. Pode ser algo esquecido de lançar.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data</th><th>Descrição no extrato</th><th>Valor</th><th>Tipo</th><th>Ação</th></tr></thead>
+              <tbody id="tbody-conc-extrato-sobra"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title" style="color:var(--amber-text)"><i class="ti ti-alert-triangle"></i> Lançados como pago/recebido no período, mas não localizados no extrato</div>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Vale conferir: pode ser um erro de data/valor no lançamento, algo baixado por engano, ou uma transação que ainda não caiu no extrato.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data no sistema</th><th>Fornecedor/Cliente</th><th>Descrição</th><th>Valor</th><th>Tipo</th></tr></thead>
+              <tbody id="tbody-conc-sistema-sobra"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <!-- ==================== MODAL: A RECEBER ==================== -->
+<!-- ==================== MODAL: IDENTIFICAÇÃO MANUAL (CONCILIAÇÃO) ==================== -->
+<div class="modal-bg" id="modal-concilia-manual">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="cm-titulo"><i class="ti ti-hand-click"></i> Identificar lançamento manualmente</span>
+      <button class="close-btn" onclick="closeModal('modal-concilia-manual')">×</button>
+    </div>
+    <div id="cm-tx-info" style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:12px;font-size:13px"></div>
+    <div class="form-row full">
+      <div class="form-group"><label>Buscar por fornecedor/cliente ou descrição</label><input id="cm-busca" placeholder="Digite para filtrar..." oninput="renderListaManual()"></div>
+    </div>
+    <div class="table-wrap" style="max-height:320px;overflow-y:auto">
+      <table>
+        <thead><tr><th>Data</th><th>Fornecedor/Cliente</th><th>Descrição</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+        <tbody id="cm-lista"></tbody>
+      </table>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="closeModal('modal-concilia-manual')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-add-receber">
   <div class="modal">
     <div class="modal-header">
@@ -595,6 +679,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
           <option value="salario">Salário / Pessoal</option>
           <option value="impostos">Impostos</option>
           <option value="fixas">Despesas Fixas</option>
+          <option value="socio">Retirada Sócio</option>
         </select>
       </div>
     </div>
@@ -631,7 +716,11 @@ tbody tr:hover td{background:var(--bg-secondary)}
     <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px" id="confirm-text"></p>
     <div class="form-row">
       <div class="form-group"><label>Data da liquidação</label><input type="date" id="confirm-date"></div>
-      <div class="form-group"><label>Valor pago/recebido (R$)</label><input type="number" id="confirm-valor" step="0.01"></div>
+      <div class="form-group"><label>Valor original (R$)</label><input type="number" id="confirm-valor" step="0.01" disabled style="background:var(--bg-secondary)"></div>
+    </div>
+    <div class="form-row" id="confirm-juros-row">
+      <div class="form-group"><label>Juros/Multa por atraso (R$) <span style="font-size:11px;color:var(--text-secondary)">(deixe 0 se pago em dia)</span></label><input type="number" id="confirm-juros" step="0.01" value="0" oninput="atualizarTotalConfirm()"></div>
+      <div class="form-group"><label>Total efetivamente pago (R$)</label><input type="number" id="confirm-total" step="0.01" disabled style="background:var(--bg-secondary);font-weight:600"></div>
     </div>
     <div class="btn-row">
       <button class="btn primary" id="confirm-btn"><i class="ti ti-check"></i> Confirmar</button>
@@ -710,7 +799,8 @@ async function carregarDados() {
       data: p.data||today(), venc: p.venc||today(), valor: Number(p.valor)||0,
       doc: p.doc||'', obs: p.obs||'', status: p.status||'pendente',
       barras: p.barras||'', banco: p.banco||'',
-      dataPagamento: p.data_pagamento||null
+      dataPagamento: p.data_pagamento||null,
+      jurosMulta: Number(p.juros_multa)||0
     }));
     renderDashboard();
     mostrarStatusDB('conectado');
@@ -820,8 +910,9 @@ async function atualizarRegistroPagar(id, dados) {
 const fmt = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—';
 const today = () => new Date().toISOString().split('T')[0];
-const CC_NAMES = {fornecedores:'Fornecedores',salario:'Salário/Pessoal',impostos:'Impostos',fixas:'Despesas Fixas'};
-const CC_COLORS = {fornecedores:'#1D9E75',salario:'#185FA5',impostos:'#BA7517',fixas:'#8B5CF6'};
+const valorPagoTotal = p => (p.valor||0) + (p.jurosMulta||0);
+const CC_NAMES = {fornecedores:'Fornecedores',salario:'Salário/Pessoal',impostos:'Impostos',fixas:'Despesas Fixas',socio:'Retirada Sócio'};
+const CC_COLORS = {fornecedores:'#1D9E75',salario:'#185FA5',impostos:'#BA7517',fixas:'#8B5CF6',socio:'#0EA5E9'};
 
 // ============================================================
 // ESTADO
@@ -918,7 +1009,7 @@ function renderDashboard() {
   }
 
   // Centros de custo mini
-  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0};
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0};
   appData.pagar.filter(p=>inP(p.data)).forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+p.valor);
   const maxCC = Math.max(...Object.values(ccMap), 1);
   document.getElementById('cc-mini').innerHTML = Object.entries(ccMap).map(([k,v])=>`
@@ -1241,6 +1332,12 @@ function renderPagar() {
 // ============================================================
 // CONFIRMAR LIQUIDAÇÃO
 // ============================================================
+function atualizarTotalConfirm() {
+  const valor = parseFloat(document.getElementById('confirm-valor').value) || 0;
+  const juros = parseFloat(document.getElementById('confirm-juros').value) || 0;
+  document.getElementById('confirm-total').value = (valor + juros).toFixed(2);
+}
+
 function confirmarLiquidacao(tipo, id) {
   if (tipo==='receber') { abrirBaixaReceber(id); return; }
   const item = appData.pagar.find(x=>x.id===id);
@@ -1249,11 +1346,15 @@ function confirmarLiquidacao(tipo, id) {
   document.getElementById('confirm-text').textContent = `${item.forn} — ${item.desc} | ${fmt(item.valor)}`;
   document.getElementById('confirm-date').value = today();
   document.getElementById('confirm-valor').value = item.valor;
+  document.getElementById('confirm-juros').value = 0;
+  atualizarTotalConfirm();
   document.getElementById('confirm-btn').onclick = () => {
     const dataPag = document.getElementById('confirm-date').value || today();
+    const juros = parseFloat(document.getElementById('confirm-juros').value) || 0;
     item.status = 'pago';
     item.dataPagamento = dataPag;
-    atualizarStatus('pagar', item.id, 'pago', { data_pagamento: dataPag }).catch(e=>console.error(e));
+    item.jurosMulta = juros;
+    atualizarStatus('pagar', item.id, 'pago', { data_pagamento: dataPag, juros_multa: juros }).catch(e=>console.error(e));
     closeModal('modal-confirm');
     renderPagar();
     renderDashboard();
@@ -1361,11 +1462,11 @@ function addPagar(overrides={}) {
   };
   const duplicado = appData.pagar.some(p =>
     p.forn.trim().toLowerCase() === forn.toLowerCase() &&
-    p.data === entry.data &&
+    p.venc === entry.venc &&
     Math.abs(p.valor - entry.valor) < 0.01
   );
   if (duplicado) {
-    const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${forn}\nData: ${entry.data}\nValor: ${fmt(entry.valor)}\n\nParece duplicado. Deseja incluir mesmo assim?`);
+    const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${forn}\nVencimento: ${entry.venc}\nValor: ${fmt(entry.valor)}\n\nParece duplicado. Deseja incluir mesmo assim?`);
     if (!seguir) return;
   }
   appData.pagar.push(entry);
@@ -1387,7 +1488,7 @@ function renderLC() {
   const entradas = appData.receber.filter(r=>r.status==='recebido'&&inP(r.dataRecebimento||r.data));
   const saidas = appData.pagar.filter(p=>p.status==='pago'&&inP(p.dataPagamento||p.data));
   const totE = entradas.reduce((s,r)=>s+r.valor,0);
-  const totS = saidas.reduce((s,p)=>s+p.valor,0);
+  const totS = saidas.reduce((s,p)=>s+valorPagoTotal(p),0);
   const saldo = totE - totS;
 
   document.getElementById('lc-metrics').innerHTML = `
@@ -1397,7 +1498,7 @@ function renderLC() {
 
   const all = [
     ...entradas.map(r=>({data:r.dataRecebimento||r.data,desc:r.cliente+' — '+r.desc,tipo:'E',valor:r.valor})),
-    ...saidas.map(p=>({data:p.dataPagamento||p.data,desc:p.forn+' — '+p.desc,tipo:'S',valor:p.valor}))
+    ...saidas.map(p=>({data:p.dataPagamento||p.data,desc:p.forn+' — '+p.desc+(p.jurosMulta?` (+ juros/multa ${fmt(p.jurosMulta)})`:''),tipo:'S',valor:valorPagoTotal(p)}))
   ].sort((a,b)=>a.data.localeCompare(b.data));
 
   if (!all.length) {
@@ -1416,8 +1517,8 @@ function renderLC() {
   }
 
   // CC Resumo
-  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0};
-  saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+p.valor);
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0};
+  saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+valorPagoTotal(p));
   document.getElementById('lc-cc-resumo').innerHTML = Object.entries(ccMap).map(([k,v])=>`
     <div class="cc-row">
       <div class="cc-name">${CC_NAMES[k]}</div>
@@ -1454,9 +1555,9 @@ function printLC() {
   const entradas = appData.receber.filter(r=>r.status==='recebido'&&inP(r.dataRecebimento||r.data));
   const saidas = appData.pagar.filter(p=>p.status==='pago'&&inP(p.dataPagamento||p.data));
   const totE = entradas.reduce((s,r)=>s+r.valor,0);
-  const totS = saidas.reduce((s,p)=>s+p.valor,0);
-  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0};
-  saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+p.valor);
+  const totS = saidas.reduce((s,p)=>s+valorPagoTotal(p),0);
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0};
+  saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+valorPagoTotal(p));
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Livro Caixa — ${meses[mes]}/${ano}</title>
   <style>body{font-family:Arial,sans-serif;padding:30px;color:#222;font-size:13px}h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;margin:20px 0 8px;color:#333}
@@ -1475,7 +1576,7 @@ function printLC() {
   <h2>Entradas</h2><table><tr><th>Data</th><th>Cliente</th><th>Descrição</th><th>Valor</th></tr>
   ${entradas.map(r=>`<tr><td>${fmtDate(r.dataRecebimento||r.data)}</td><td>${r.cliente}</td><td>${r.desc}</td><td class="e">${fmt(r.valor)}</td></tr>`).join('')||'<tr><td colspan="4">Nenhuma</td></tr>'}</table>
   <h2>Saídas</h2><table><tr><th>Data</th><th>Fornecedor</th><th>Descrição</th><th>Centro</th><th>Valor</th></tr>
-  ${saidas.map(p=>`<tr><td>${fmtDate(p.dataPagamento||p.data)}</td><td>${p.forn}</td><td>${p.desc}</td><td>${CC_NAMES[p.centro]}</td><td class="s">${fmt(p.valor)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma</td></tr>'}</table>
+  ${saidas.map(p=>`<tr><td>${fmtDate(p.dataPagamento||p.data)}</td><td>${p.forn}</td><td>${p.desc}${p.jurosMulta?` (+ juros/multa ${fmt(p.jurosMulta)})`:''}</td><td>${CC_NAMES[p.centro]}</td><td class="s">${fmt(valorPagoTotal(p))}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma</td></tr>'}</table>
   </body></html>`;
   const w = window.open('','_blank');
   w.document.write(html);
@@ -1491,8 +1592,8 @@ function renderCC() {
   const ano = parseInt(document.getElementById('cc-ano').value);
   const inP = d => { const dt = new Date(d+'T00:00:00'); return dt.getMonth()===mes && dt.getFullYear()===ano; };
   const saidas = appData.pagar.filter(p=>inP(p.data));
-  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0};
-  saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+p.valor);
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0};
+  saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+valorPagoTotal(p));
   const total = Object.values(ccMap).reduce((s,v)=>s+v,0);
 
   document.getElementById('cc-detalhe').innerHTML = Object.entries(ccMap).map(([k,v])=>`
@@ -1697,6 +1798,7 @@ function showAIResult(d) {
       <option value="salario" ${d.centro_custo==='salario'?'selected':''}>Salário/Pessoal</option>
       <option value="impostos" ${d.centro_custo==='impostos'?'selected':''}>Impostos</option>
       <option value="fixas" ${d.centro_custo==='fixas'?'selected':''}>Despesas Fixas</option>
+      <option value="socio" ${d.centro_custo==='socio'?'selected':''}>Retirada Sócio</option>
     </select></div></div>
     <div class="form-row full"><div class="form-group"><label>Descrição</label><input id="ai-desc" value="${d.descricao||''}"></div></div>
     <div class="form-row three">
@@ -1828,11 +1930,11 @@ function lancarDoAI() {
     };
     const duplicado = appData.pagar.some(p =>
       p.forn.trim().toLowerCase() === pEntry.forn.trim().toLowerCase() &&
-      p.data === pEntry.data &&
+      p.venc === pEntry.venc &&
       Math.abs(p.valor - pEntry.valor) < 0.01
     );
     if (duplicado) {
-      const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${pEntry.forn}\nData: ${pEntry.data}\nValor: ${fmt(pEntry.valor)}\n\nParece duplicado. Deseja incluir mesmo assim?`);
+      const seguir = confirm(`Já existe um lançamento igual a este:\n\nFornecedor: ${pEntry.forn}\nVencimento: ${pEntry.venc}\nValor: ${fmt(pEntry.valor)}\n\nParece duplicado. Deseja incluir mesmo assim?`);
       if (!seguir) return;
     }
     appData.pagar.push(pEntry);
@@ -2151,6 +2253,310 @@ async function atualizarPagamentosSupabase(r) {
   } catch(e) { console.error(e); }
 }
 
+// ============================================================
+// CONCILIAÇÃO BANCÁRIA (OFX)
+// ============================================================
+let ultimoExtratoTxs = [];
+function normalizeStr(s) {
+  return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+
+function diffDays(d1, d2) {
+  if (!d1 || !d2) return 999;
+  return Math.abs((new Date(d1+'T00:00:00') - new Date(d2+'T00:00:00')) / 86400000);
+}
+
+function parseOFXDate(raw) {
+  if (!raw) return null;
+  const digits = raw.trim().substring(0, 8);
+  if (digits.length < 8) return null;
+  return `${digits.substring(0,4)}-${digits.substring(4,6)}-${digits.substring(6,8)}`;
+}
+
+function parseOFX(texto) {
+  const blocos = texto.split(/<STMTTRN>/i).slice(1);
+  const get = (bloco, tag) => {
+    const m = bloco.match(new RegExp(`<${tag}>([^<\r\n]*)`, 'i'));
+    return m ? m[1].trim() : '';
+  };
+  return blocos.map(bloco => {
+    const amtRaw = get(bloco, 'TRNAMT').replace(',', '.');
+    const valor = parseFloat(amtRaw) || 0;
+    const data = parseOFXDate(get(bloco, 'DTPOSTED'));
+    const desc = get(bloco, 'NAME') || get(bloco, 'MEMO') || '(sem descrição)';
+    return { data, valor, desc, fitid: get(bloco, 'FITID') };
+  }).filter(t => t.data && t.valor !== 0);
+}
+
+function handleExtratoFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('conc-file-name').textContent = 'Lendo: ' + file.name + '...';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const txs = parseOFX(e.target.result);
+      if (!txs.length) {
+        alert('Não consegui encontrar transações nesse arquivo. Confirme se é um .OFX válido exportado do internet banking.');
+        document.getElementById('conc-file-name').textContent = '';
+        return;
+      }
+      document.getElementById('conc-file-name').innerHTML = `<i class="ti ti-file-check"></i> ${file.name} — ${txs.length} transações encontradas`;
+      ultimoExtratoTxs = txs.map((t,idx)=>({...t, idx}));
+      ultimoManualLinks = {};
+      processarConciliacao(ultimoExtratoTxs);
+    } catch(err) {
+      console.error(err);
+      alert('Erro ao ler o arquivo: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+let ultimoManualLinks = {}; // { txIdx: {tipo:'pagar'|'receber', id} }
+
+function processarConciliacao(txs) {
+  const TOLERANCIA_DIAS = 5;
+  const usados = new Set();
+  const conciliados = [];
+  const semCorrespondencia = [];
+
+  // 1) Aplica primeiro os vínculos manuais já feitos
+  txs.forEach(tx => {
+    const link = ultimoManualLinks[tx.idx];
+    if (!link) return;
+    const lista = link.tipo === 'receber' ? appData.receber : appData.pagar;
+    const obj = lista.find(o => o.id === link.id);
+    if (!obj) return;
+    usados.add((link.tipo==='receber'?'r':'p') + obj.id);
+    conciliados.push({ tx, match: { obj, tipo: link.tipo, nome: link.tipo==='receber'?obj.cliente:obj.forn }, manual: true });
+  });
+
+  // 2) Depois, tenta o casamento automático pro que sobrou
+  txs.forEach(tx => {
+    if (ultimoManualLinks[tx.idx]) return; // já tratado manualmente
+    const abs = Math.abs(tx.valor);
+    let candidatos;
+    if (tx.valor > 0) {
+      candidatos = appData.receber.filter(r => !usados.has('r'+r.id)).map(r => ({
+        obj: r, tipo: 'receber',
+        valorComp: (r.valorLiquido!=null ? r.valorLiquido : r.valor),
+        dataComp: r.dataRecebimento || r.venc || r.data,
+        nome: r.cliente
+      }));
+    } else {
+      candidatos = appData.pagar.filter(p => !usados.has('p'+p.id)).map(p => ({
+        obj: p, tipo: 'pagar',
+        valorComp: valorPagoTotal(p),
+        dataComp: p.dataPagamento || p.venc || p.data,
+        nome: p.forn
+      }));
+    }
+    const possiveis = candidatos
+      .filter(c => Math.abs(c.valorComp - abs) < 0.01 && diffDays(c.dataComp, tx.data) <= TOLERANCIA_DIAS)
+      .sort((a,b) => diffDays(a.dataComp, tx.data) - diffDays(b.dataComp, tx.data));
+
+    if (possiveis.length) {
+      const melhor = possiveis[0];
+      usados.add((melhor.tipo==='receber'?'r':'p') + melhor.obj.id);
+      conciliados.push({ tx, match: melhor });
+    } else {
+      semCorrespondencia.push(tx);
+    }
+  });
+  conciliados.sort((a,b)=>a.tx.idx-b.tx.idx);
+
+  const datas = txs.map(t=>t.data).sort();
+  const periodoIni = datas[0], periodoFim = datas[datas.length-1];
+  const dentroDoPeriodo = d => d && d >= periodoIni && d <= periodoFim;
+
+  const sistemaSemCorrespondencia = [
+    ...appData.receber.filter(r => r.status==='recebido' && !usados.has('r'+r.id) && dentroDoPeriodo(r.dataRecebimento||r.data))
+      .map(r => ({ tipo:'receber', obj:r, nome:r.cliente, desc:r.desc, data:r.dataRecebimento||r.data, valor:r.valorLiquido!=null?r.valorLiquido:r.valor })),
+    ...appData.pagar.filter(p => p.status==='pago' && !usados.has('p'+p.id) && dentroDoPeriodo(p.dataPagamento||p.data))
+      .map(p => ({ tipo:'pagar', obj:p, nome:p.forn, desc:p.desc, data:p.dataPagamento||p.data, valor:valorPagoTotal(p) }))
+  ];
+
+  renderConciliacao({ conciliados, semCorrespondencia, sistemaSemCorrespondencia, periodoIni, periodoFim, totalTx: txs.length, usados });
+}
+let ultimoResultadoConciliacao = null;
+
+let cmTxAtual = null;
+
+function abrirIdentificacaoManual(idx) {
+  const tx = ultimoExtratoTxs.find(t => t.idx === idx);
+  if (!tx) return;
+  cmTxAtual = tx;
+  document.getElementById('cm-tx-info').innerHTML = `
+    <strong>Transação do extrato:</strong> ${fmtDate(tx.data)} — ${tx.desc} —
+    <span style="color:${tx.valor>0?'var(--green-text)':'var(--red-text)'};font-weight:600">${fmt(Math.abs(tx.valor))}</span>
+    (${tx.valor>0?'Entrada — procurando em Contas a Receber':'Saída — procurando em Contas a Pagar'})`;
+  document.getElementById('cm-busca').value = '';
+  renderListaManual();
+  openModal('modal-concilia-manual');
+}
+
+function renderListaManual() {
+  const tx = cmTxAtual;
+  if (!tx) return;
+  const termo = normalizeStr(document.getElementById('cm-busca').value);
+  const usadosIds = new Set(
+    (ultimoResultadoConciliacao?.conciliados || [])
+      .filter(c => c.match.tipo === (tx.valor>0?'receber':'pagar'))
+      .map(c => c.match.obj.id)
+  );
+  const lista = tx.valor > 0
+    ? appData.receber.filter(r => !usadosIds.has(r.id))
+    : appData.pagar.filter(p => !usadosIds.has(p.id));
+
+  const filtrada = lista.filter(item => {
+    const nome = tx.valor>0 ? item.cliente : item.forn;
+    return !termo || normalizeStr(nome).includes(termo) || normalizeStr(item.desc).includes(termo);
+  }).sort((a,b) => diffDays(tx.valor>0?(a.dataRecebimento||a.venc||a.data):(a.dataPagamento||a.venc||a.data), tx.data) - diffDays(tx.valor>0?(b.dataRecebimento||b.venc||b.data):(b.dataPagamento||b.venc||b.data), tx.data));
+
+  document.getElementById('cm-lista').innerHTML = filtrada.map(item => {
+    const nome = tx.valor>0 ? item.cliente : item.forn;
+    const valorItem = tx.valor>0 ? (item.valorLiquido!=null?item.valorLiquido:item.valor) : valorPagoTotal(item);
+    return `<tr>
+      <td>${fmtDate(item.data)}</td>
+      <td>${nome}</td>
+      <td>${item.desc}</td>
+      <td>${fmt(valorItem)}</td>
+      <td><span class="badge ${item.status}">${item.status}</span></td>
+      <td><button class="btn primary" style="padding:5px 10px;font-size:11px" onclick="vincularManual(${item.id})"><i class="ti ti-link"></i> Vincular</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6">Nenhum lançamento encontrado com esse filtro.</td></tr>';
+}
+
+function vincularManual(id) {
+  const tx = cmTxAtual;
+  if (!tx) return;
+  const tipo = tx.valor > 0 ? 'receber' : 'pagar';
+  const lista = tipo === 'receber' ? appData.receber : appData.pagar;
+  const obj = lista.find(o => o.id === id);
+  if (!obj) return;
+
+  if (tipo === 'receber' && obj.status !== 'recebido') {
+    obj.status = 'recebido';
+    obj.dataRecebimento = tx.data;
+    atualizarStatus('receber', obj.id, 'recebido', { data_recebimento: tx.data }).catch(e=>console.error(e));
+  } else if (tipo === 'pagar' && obj.status !== 'pago') {
+    obj.status = 'pago';
+    obj.dataPagamento = tx.data;
+    atualizarStatus('pagar', obj.id, 'pago', { data_pagamento: tx.data }).catch(e=>console.error(e));
+  }
+
+  ultimoManualLinks[tx.idx] = { tipo, id: obj.id };
+  closeModal('modal-concilia-manual');
+  renderPagar(); renderReceber(); renderDashboard();
+  processarConciliacao(ultimoExtratoTxs);
+}
+
+function classificarComoRetiradaSocio(idx) {
+  const tx = ultimoExtratoTxs.find(t => t.idx === idx);
+  if (!tx) return;
+  const id = appData.pagar.length ? Math.max(...appData.pagar.map(p=>p.id))+1 : 1;
+  const entry = {
+    id, forn: 'Alisson — Retirada Sócio', desc: tx.desc, centro: 'socio',
+    data: tx.data, venc: tx.data, valor: Math.abs(tx.valor),
+    doc: '', barras: '', banco: '', obs: 'Classificado a partir da conciliação bancária',
+    status: 'pago', dataPagamento: tx.data
+  };
+  appData.pagar.push(entry);
+  salvarPagar(entry).catch(e=>alert('Erro ao salvar: '+e.message));
+  atualizarStatus('pagar', entry.id, 'pago', { data_pagamento: tx.data }).catch(e=>console.error(e));
+  renderPagar(); renderDashboard();
+  processarConciliacao(ultimoExtratoTxs);
+}
+
+function printConciliacao() {
+  if (!ultimoResultadoConciliacao) return;
+  const res = ultimoResultadoConciliacao;
+  const linhas = [
+    ...res.conciliados.map(c => ({
+      data: c.tx.data, tipo: c.tx.valor>0?'Entrada':'Saída',
+      nome: c.match.nome, doc: c.match.obj.doc || c.match.obj.os || '—',
+      centro: c.match.tipo==='pagar' ? (CC_NAMES[c.match.obj.centro]||c.match.obj.centro) : '—',
+      desc: c.match.obj.desc, valor: Math.abs(c.tx.valor), situacao: 'Conciliado'
+    })),
+    ...res.semCorrespondencia.map(tx => ({
+      data: tx.data, tipo: tx.valor>0?'Entrada':'Saída',
+      nome: '—', doc: '—', centro: '—', desc: tx.desc, valor: Math.abs(tx.valor), situacao: 'Não identificado'
+    }))
+  ].sort((a,b)=>a.data.localeCompare(b.data));
+
+  const totE = linhas.filter(l=>l.tipo==='Entrada').reduce((s,l)=>s+l.valor,0);
+  const totS = linhas.filter(l=>l.tipo==='Saída').reduce((s,l)=>s+l.valor,0);
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Conciliação Bancária — ${fmtDate(res.periodoIni)} a ${fmtDate(res.periodoFim)}</title>
+  <style>
+  body{font-family:Arial,sans-serif;padding:30px;color:#222}
+  h1{font-size:20px;margin-bottom:2px}
+  .sub{color:#666;font-size:12px;margin-bottom:20px}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px}
+  th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
+  th{background:#f5f5f5}
+  .e{color:#1D9E75;font-weight:bold}.s{color:#E24B4A;font-weight:bold}
+  .naoident{background:#FFF6E5}
+  .total{font-weight:bold;background:#f9f9f9}
+  </style></head><body>
+  <h1>Relatório de Conciliação Bancária</h1>
+  <p class="sub">Período do extrato: ${fmtDate(res.periodoIni)} a ${fmtDate(res.periodoFim)} — Emitido em: ${new Date().toLocaleDateString('pt-BR')} — AutoGestão Veiga</p>
+  <table>
+    <tr><th>Data</th><th>Tipo</th><th>Cliente/Fornecedor</th><th>Nº NF/OS/Doc.</th><th>Centro de Custo</th><th>Descrição</th><th>Valor</th><th>Situação</th></tr>
+    ${linhas.map(l=>`<tr class="${l.situacao==='Não identificado'?'naoident':''}"><td>${fmtDate(l.data)}</td><td>${l.tipo}</td><td>${l.nome}</td><td>${l.doc}</td><td>${l.centro}</td><td>${l.desc}</td><td class="${l.tipo==='Entrada'?'e':'s'}">${fmt(l.valor)}</td><td>${l.situacao}</td></tr>`).join('')}
+    <tr class="total"><td colspan="6">Totais</td><td class="e">${fmt(totE)}</td><td></td></tr>
+    <tr class="total"><td colspan="6"></td><td class="s">${fmt(totS)}</td><td></td></tr>
+  </table>
+  <p style="font-size:11px;color:#888">Linhas em destaque (fundo amarelo) são movimentações do extrato bancário sem lançamento correspondente no sistema — merecem verificação antes do fechamento contábil.</p>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  w.print();
+}
+
+function renderConciliacao(res) {
+  ultimoResultadoConciliacao = res;
+  document.getElementById('conc-resultado').style.display = 'block';
+
+  document.getElementById('conc-metrics').innerHTML = `
+    <div class="metric-card"><div class="metric-label">Período do extrato</div><div class="metric-value" style="font-size:16px">${fmtDate(res.periodoIni)} a ${fmtDate(res.periodoFim)}</div></div>
+    <div class="metric-card"><div class="metric-label">Transações no extrato</div><div class="metric-value">${res.totalTx}</div></div>
+    <div class="metric-card"><div class="metric-label">Conciliadas</div><div class="metric-value green">${res.conciliados.length}</div></div>
+    <div class="metric-card"><div class="metric-label">Sem correspondência</div><div class="metric-value red">${res.semCorrespondencia.length + res.sistemaSemCorrespondencia.length}</div></div>`;
+
+  document.getElementById('tbody-conc-ok').innerHTML = res.conciliados.map(c => `
+    <tr>
+      <td>${fmtDate(c.tx.data)}</td>
+      <td>${c.tx.desc}</td>
+      <td style="color:${c.tx.valor>0?'var(--green-text)':'var(--red-text)'};font-weight:600">${fmt(Math.abs(c.tx.valor))}</td>
+      <td>${c.match.nome} — ${c.match.obj.desc}${c.manual?' <span class="badge pendente" style="font-size:9px">manual</span>':''}</td>
+      <td><span class="badge ${c.match.obj.status}">${c.match.obj.status}</span></td>
+    </tr>`).join('') || '<tr><td colspan="5">Nenhuma</td></tr>';
+
+  document.getElementById('tbody-conc-extrato-sobra').innerHTML = res.semCorrespondencia.map(tx => `
+    <tr>
+      <td>${fmtDate(tx.data)}</td>
+      <td>${tx.desc}</td>
+      <td style="color:${tx.valor>0?'var(--green-text)':'var(--red-text)'};font-weight:600">${fmt(Math.abs(tx.valor))}</td>
+      <td><span class="badge ${tx.valor>0?'os':'pendente'}">${tx.valor>0?'Entrada':'Saída'}</span></td>
+      <td>
+        <button class="btn" style="padding:5px 10px;font-size:11px" onclick="abrirIdentificacaoManual(${tx.idx})"><i class="ti ti-hand-click"></i> Identificar manualmente</button>
+        ${tx.valor<0?`<button class="btn" style="padding:5px 10px;font-size:11px;margin-top:4px" onclick="classificarComoRetiradaSocio(${tx.idx})"><i class="ti ti-user"></i> Retirada Sócio</button>`:''}
+      </td>
+    </tr>`).join('') || '<tr><td colspan="5">Nenhuma — tudo do extrato foi identificado</td></tr>';
+
+  document.getElementById('tbody-conc-sistema-sobra').innerHTML = res.sistemaSemCorrespondencia.map(i => `
+    <tr>
+      <td>${fmtDate(i.data)}</td>
+      <td>${i.nome}</td>
+      <td>${i.desc}</td>
+      <td style="color:${i.tipo==='receber'?'var(--green-text)':'var(--red-text)'};font-weight:600">${fmt(i.valor)}</td>
+      <td><span class="badge ${i.tipo==='receber'?'os':'pendente'}">${i.tipo==='receber'?'Receber':'Pagar'}</span></td>
+    </tr>`).join('') || '<tr><td colspan="5">Nenhum — tudo o que está marcado como pago/recebido apareceu no extrato</td></tr>';
+}
+
 // Init — carrega dados do Supabase
 carregarDados();
 </script>
@@ -2248,7 +2654,7 @@ carregarDados();
   <div class="modal">
     <div class="modal-header"><span class="modal-title"><i class="ti ti-edit"></i> Editar Conta a Pagar</span><button class="close-btn" onclick="closeModal('modal-editar-pagar')">×</button></div>
     <input type="hidden" id="ep-id">
-    <div class="form-row"><div class="form-group"><label>Fornecedor / Credor</label><input id="ep-forn"></div><div class="form-group"><label>Centro de Custo</label><select id="ep-centro"><option value="fornecedores">Fornecedores</option><option value="salario">Salário / Pessoal</option><option value="impostos">Impostos</option><option value="fixas">Despesas Fixas</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label>Fornecedor / Credor</label><input id="ep-forn"></div><div class="form-group"><label>Centro de Custo</label><select id="ep-centro"><option value="fornecedores">Fornecedores</option><option value="salario">Salário / Pessoal</option><option value="impostos">Impostos</option><option value="fixas">Despesas Fixas</option><option value="socio">Retirada Sócio</option></select></div></div>
     <div class="form-row full"><div class="form-group"><label>Descrição</label><input id="ep-desc"></div></div>
     <div class="form-row"><div class="form-group"><label>Data de emissão</label><input type="date" id="ep-data"></div><div class="form-group"><label>Data de vencimento</label><input type="date" id="ep-venc"></div></div>
     <div class="form-row"><div class="form-group"><label>Valor (R$)</label><input type="number" id="ep-valor" step="0.01" min="0"></div><div class="form-group"><label>N° Documento</label><input id="ep-doc"></div></div>
@@ -2268,6 +2674,3 @@ carregarDados();
 
 </body>
 </html>
-
-
-
