@@ -481,28 +481,37 @@ tbody tr:hover td{background:var(--bg-secondary)}
 
       <div class="card">
         <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
-          Envie o extrato bancário em formato <strong>OFX</strong> (arquivo padrão exportado pelo internet banking — mais preciso, pois traz data, valor e descrição de cada transação já estruturados). O sistema compara cada movimentação do extrato com os lançamentos de Contas a Receber e Contas a Pagar por <strong>valor</strong> e <strong>data</strong> (com tolerância de alguns dias, cobrindo o prazo de compensação).
+          Envie o extrato bancário em formato <strong>OFX</strong> (arquivo padrão exportado pelo internet banking — mais preciso, pois traz data, valor e descrição de cada transação já estruturados). O sistema compara cada movimentação do extrato com os lançamentos de Contas a Receber e Contas a Pagar por <strong>valor</strong> e <strong>data</strong> (com tolerância de alguns dias, cobrindo o prazo de compensação). Você pode enviar os extratos de mais de uma conta — eles somam no mesmo período, cada um identificado pela conta de origem.
         </p>
+        <div class="form-row">
+          <div class="form-group"><label>Identificação desta conta</label><input id="conc-conta-nome" placeholder="Ex: Banco do Brasil - CC, Santander - CC..."></div>
+        </div>
         <div class="upload-area" onclick="document.getElementById('conc-file-input').click()" id="conc-drop-zone">
           <i class="ti ti-cloud-upload icon"></i>
-          <p>Clique para selecionar o arquivo do extrato</p>
+          <p>Clique para selecionar o arquivo do extrato dessa conta</p>
           <p class="small">Formato aceito: .OFX / .QFX</p>
         </div>
         <input type="file" id="conc-file-input" accept=".ofx,.qfx" style="display:none" onchange="handleExtratoFile(this)">
         <div id="conc-file-name" style="font-size:12px;color:var(--text-secondary);margin-top:8px"></div>
+        <div id="conc-contas-carregadas" style="margin-top:12px"></div>
+        <div class="btn-row" style="margin-top:12px" id="conc-btn-limpar-wrap" style="display:none">
+          <button class="btn" onclick="limparConciliacao()"><i class="ti ti-trash"></i> Limpar tudo e começar um novo período</button>
+        </div>
       </div>
 
       <div id="conc-resultado" style="display:none">
         <div class="metrics" id="conc-metrics"></div>
         <div class="btn-row" style="margin-bottom:16px">
           <button class="btn primary" onclick="printConciliacao()"><i class="ti ti-printer"></i> Gerar Relatório para Contabilidade</button>
+          <button class="btn" onclick="baixarCSVConciliacao()"><i class="ti ti-file-spreadsheet"></i> Baixar planilha (CSV)</button>
+          <button class="btn" id="conc-btn-aceitar-todas" style="display:none;color:var(--green-text)" onclick="aceitarTodasSugestoes()"><i class="ti ti-checks"></i> Aceitar todas as sugestões pendentes</button>
         </div>
 
         <div class="card">
           <div class="section-title" style="color:var(--green-text)"><i class="ti ti-circle-check"></i> Conciliados automaticamente</div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Data extrato</th><th>Descrição no extrato</th><th>Valor</th><th>Lançamento correspondente</th><th>Status no sistema</th></tr></thead>
+              <thead><tr><th>Data extrato</th><th>Conta</th><th>Descrição no extrato</th><th>Valor</th><th>Lançamento correspondente</th><th>Situação</th><th>Ação</th></tr></thead>
               <tbody id="tbody-conc-ok"></tbody>
             </table>
           </div>
@@ -510,10 +519,10 @@ tbody tr:hover td{background:var(--bg-secondary)}
 
         <div class="card">
           <div class="section-title" style="color:var(--red-text)"><i class="ti ti-alert-circle"></i> Transações do extrato sem lançamento correspondente</div>
-          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Movimentações que passaram pelo banco mas não têm um lançamento com valor/data compatível no sistema. Pode ser algo esquecido de lançar.</p>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Movimentações que passaram pelo banco mas não têm um lançamento com valor/data compatível no sistema. Preencha e clique em salvar pra lançar direto desta tela, linha por linha, sem abrir janela — ou use "Já existe" se o lançamento já estiver cadastrado no sistema.</p>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Data</th><th>Descrição no extrato</th><th>Valor</th><th>Tipo</th><th>Ação</th></tr></thead>
+              <thead><tr><th style="min-width:90px">Data / Conta</th><th style="min-width:110px">Valor / Tipo</th><th style="min-width:150px">Fornecedor/Cliente</th><th style="min-width:150px">Descrição</th><th style="min-width:100px">Centro</th><th style="min-width:90px">Nº Doc</th><th></th></tr></thead>
               <tbody id="tbody-conc-extrato-sobra"></tbody>
             </table>
           </div>
@@ -557,6 +566,8 @@ tbody tr:hover td{background:var(--bg-secondary)}
       <button class="btn" onclick="closeModal('modal-concilia-manual')">Cancelar</button>
     </div>
   </div>
+</div>
+
 </div>
 
 <div class="modal-bg" id="modal-add-receber">
@@ -804,6 +815,14 @@ async function carregarDados() {
     }));
     renderDashboard();
     mostrarStatusDB('conectado');
+    // Carrega separadamente — se a tabela conciliacoes ainda não existir, não trava o resto do app
+    try {
+      const conc = await sbFetch('conciliacoes?select=*');
+      conciliacoesSalvas = conc || [];
+    } catch(e2) {
+      console.warn('Tabela conciliacoes indisponível ainda:', e2.message);
+      conciliacoesSalvas = [];
+    }
   } catch(e) {
     console.error('Supabase error:', e);
     mostrarStatusDB('erro', e.message);
@@ -2256,7 +2275,12 @@ async function atualizarPagamentosSupabase(r) {
 // ============================================================
 // CONCILIAÇÃO BANCÁRIA (OFX)
 // ============================================================
-let ultimoExtratoTxs = [];
+let ultimoExtratoTxs = [];   // acumula transações de todos os arquivos/contas carregados no período
+let contasCarregadas = [];   // [{nome, arquivo, qtd}]
+let proximoIdxTx = 0;
+let conciliacoesSalvas = []; // histórico permanente vindo do Supabase (tabela conciliacoes)
+let rejeitadosAuto = new Set(); // idx de tx cuja sugestão automática foi rejeitada nesta sessão
+
 function normalizeStr(s) {
   return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 }
@@ -2288,22 +2312,77 @@ function parseOFX(texto) {
   }).filter(t => t.data && t.valor !== 0);
 }
 
+function chaveConciliacao(tx) {
+  return tx.fitid ? `${tx.conta}|F${tx.fitid}` : `${tx.conta}|D${tx.data}|${tx.valor}|${tx.desc}`;
+}
+
+async function salvarConciliacaoAceita(tx, tipo, lancamentoId) {
+  const row = {
+    conta: tx.conta || '', data: tx.data, valor: tx.valor,
+    descricao: tx.desc, fitid: tx.fitid || null,
+    tipo_lancamento: tipo, lancamento_id: lancamentoId
+  };
+  try {
+    const res = await sbFetch('conciliacoes', 'POST', row);
+    conciliacoesSalvas.push(res[0]);
+  } catch(e) {
+    console.error('Erro ao salvar conciliação aceita:', e);
+  }
+}
+
+function renderContasCarregadas() {
+  const wrap = document.getElementById('conc-contas-carregadas');
+  document.getElementById('conc-btn-limpar-wrap').style.display = contasCarregadas.length ? 'flex' : 'none';
+  wrap.innerHTML = contasCarregadas.length ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">Contas carregadas neste período:</div>` +
+    contasCarregadas.map(c => `<span class="badge fixas" style="margin-right:6px;margin-bottom:6px;display:inline-block"><i class="ti ti-building-bank"></i> ${c.nome} — ${c.qtd} transações (${c.arquivo})</span>`).join('') : '';
+}
+
+function limparConciliacao() {
+  if (!confirm('Isso limpa o extrato carregado desta tela (não apaga nenhum lançamento). Continuar?')) return;
+  ultimoExtratoTxs = [];
+  contasCarregadas = [];
+  ultimoManualLinks = {};
+  rascunhosProvisao = {};
+  rejeitadosAuto = new Set();
+  proximoIdxTx = 0;
+  document.getElementById('conc-resultado').style.display = 'none';
+  document.getElementById('conc-file-name').textContent = '';
+  document.getElementById('conc-conta-nome').value = '';
+  renderContasCarregadas();
+}
+
 function handleExtratoFile(input) {
   const file = input.files[0];
   if (!file) return;
+  const contaNome = document.getElementById('conc-conta-nome').value.trim();
+  if (!contaNome) {
+    alert('Preencha a identificação da conta antes de enviar o arquivo (ex: "Banco do Brasil - CC"), pra saber depois de qual conta veio cada transação.');
+    input.value = '';
+    return;
+  }
   document.getElementById('conc-file-name').textContent = 'Lendo: ' + file.name + '...';
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const txs = parseOFX(e.target.result);
-      if (!txs.length) {
+      const brutas = parseOFX(e.target.result);
+      if (!brutas.length) {
         alert('Não consegui encontrar transações nesse arquivo. Confirme se é um .OFX válido exportado do internet banking.');
         document.getElementById('conc-file-name').textContent = '';
         return;
       }
-      document.getElementById('conc-file-name').innerHTML = `<i class="ti ti-file-check"></i> ${file.name} — ${txs.length} transações encontradas`;
-      ultimoExtratoTxs = txs.map((t,idx)=>({...t, idx}));
-      ultimoManualLinks = {};
+      // Evita duplicar transações já carregadas dessa mesma conta (reenvio acidental do mesmo arquivo)
+      const jaExistentes = new Set(ultimoExtratoTxs.filter(t=>t.conta===contaNome).map(t => t.fitid ? 'F'+t.fitid : `D${t.data}|${t.valor}|${t.desc}`));
+      const novas = brutas.filter(t => !jaExistentes.has(t.fitid ? 'F'+t.fitid : `D${t.data}|${t.valor}|${t.desc}`));
+      const ignoradas = brutas.length - novas.length;
+
+      const novasComIdx = novas.map(t => ({...t, conta: contaNome, idx: proximoIdxTx++}));
+      ultimoExtratoTxs = ultimoExtratoTxs.concat(novasComIdx);
+      contasCarregadas.push({ nome: contaNome, arquivo: file.name, qtd: novas.length });
+      renderContasCarregadas();
+
+      document.getElementById('conc-file-name').innerHTML = `<i class="ti ti-file-check"></i> ${file.name} — ${novas.length} transações adicionadas${ignoradas?` (${ignoradas} ignoradas por já constarem no extrato desta conta)`:''}`;
+      document.getElementById('conc-conta-nome').value = '';
+      input.value = '';
       processarConciliacao(ultimoExtratoTxs);
     } catch(err) {
       console.error(err);
@@ -2316,25 +2395,40 @@ function handleExtratoFile(input) {
 let ultimoManualLinks = {}; // { txIdx: {tipo:'pagar'|'receber', id} }
 
 function processarConciliacao(txs) {
+  if (!txs.length) { document.getElementById('conc-resultado').style.display = 'none'; return; }
   const TOLERANCIA_DIAS = 5;
   const usados = new Set();
   const conciliados = [];
   const semCorrespondencia = [];
 
-  // 1) Aplica primeiro os vínculos manuais já feitos
+  // 1) Reconhece o que já foi aceito e salvo permanentemente em importações anteriores
   txs.forEach(tx => {
+    const chave = chaveConciliacao(tx);
+    const salvo = conciliacoesSalvas.find(c => (c.fitid ? `${c.conta}|F${c.fitid}` : `${c.conta}|D${c.data}|${c.valor}|${c.descricao}`) === chave);
+    if (!salvo) return;
+    const lista = salvo.tipo_lancamento === 'receber' ? appData.receber : appData.pagar;
+    const obj = lista.find(o => o.id === salvo.lancamento_id);
+    if (!obj) return; // lançamento foi excluído depois — deixa cair no fluxo normal
+    usados.add((salvo.tipo_lancamento==='receber'?'r':'p') + obj.id);
+    conciliados.push({ tx, match: { obj, tipo: salvo.tipo_lancamento, nome: salvo.tipo_lancamento==='receber'?obj.cliente:obj.forn }, aceito: true, jaSalvo: true });
+  });
+
+  // 2) Aplica os vínculos manuais/provisões feitos nesta sessão (ainda não recarregados do histórico)
+  txs.forEach(tx => {
+    if (conciliados.some(c=>c.tx.idx===tx.idx)) return;
     const link = ultimoManualLinks[tx.idx];
     if (!link) return;
     const lista = link.tipo === 'receber' ? appData.receber : appData.pagar;
     const obj = lista.find(o => o.id === link.id);
     if (!obj) return;
     usados.add((link.tipo==='receber'?'r':'p') + obj.id);
-    conciliados.push({ tx, match: { obj, tipo: link.tipo, nome: link.tipo==='receber'?obj.cliente:obj.forn }, manual: true });
+    conciliados.push({ tx, match: { obj, tipo: link.tipo, nome: link.tipo==='receber'?obj.cliente:obj.forn }, manual: true, aceito: true });
   });
 
-  // 2) Depois, tenta o casamento automático pro que sobrou
+  // 3) Depois, sugere o casamento automático pro que sobrou — fica PENDENTE até ser aceito
   txs.forEach(tx => {
-    if (ultimoManualLinks[tx.idx]) return; // já tratado manualmente
+    if (conciliados.some(c=>c.tx.idx===tx.idx)) return; // já resolvido acima
+    if (rejeitadosAuto.has(tx.idx)) { semCorrespondencia.push(tx); return; }
     const abs = Math.abs(tx.valor);
     let candidatos;
     if (tx.valor > 0) {
@@ -2359,7 +2453,7 @@ function processarConciliacao(txs) {
     if (possiveis.length) {
       const melhor = possiveis[0];
       usados.add((melhor.tipo==='receber'?'r':'p') + melhor.obj.id);
-      conciliados.push({ tx, match: melhor });
+      conciliados.push({ tx, match: melhor, aceito: false });
     } else {
       semCorrespondencia.push(tx);
     }
@@ -2388,7 +2482,7 @@ function abrirIdentificacaoManual(idx) {
   if (!tx) return;
   cmTxAtual = tx;
   document.getElementById('cm-tx-info').innerHTML = `
-    <strong>Transação do extrato:</strong> ${fmtDate(tx.data)} — ${tx.desc} —
+    <strong>Transação do extrato (${tx.conta||'—'}):</strong> ${fmtDate(tx.data)} — ${tx.desc} —
     <span style="color:${tx.valor>0?'var(--green-text)':'var(--red-text)'};font-weight:600">${fmt(Math.abs(tx.valor))}</span>
     (${tx.valor>0?'Entrada — procurando em Contas a Receber':'Saída — procurando em Contas a Pagar'})`;
   document.getElementById('cm-busca').value = '';
@@ -2428,6 +2522,18 @@ function renderListaManual() {
   }).join('') || '<tr><td colspan="6">Nenhum lançamento encontrado com esse filtro.</td></tr>';
 }
 
+function darBaixaSeNecessario(tipo, obj, dataTx) {
+  if (tipo === 'receber' && obj.status !== 'recebido') {
+    obj.status = 'recebido';
+    obj.dataRecebimento = dataTx;
+    atualizarStatus('receber', obj.id, 'recebido', { data_recebimento: dataTx }).catch(e=>console.error(e));
+  } else if (tipo === 'pagar' && obj.status !== 'pago') {
+    obj.status = 'pago';
+    obj.dataPagamento = dataTx;
+    atualizarStatus('pagar', obj.id, 'pago', { data_pagamento: dataTx }).catch(e=>console.error(e));
+  }
+}
+
 function vincularManual(id) {
   const tx = cmTxAtual;
   if (!tx) return;
@@ -2436,17 +2542,10 @@ function vincularManual(id) {
   const obj = lista.find(o => o.id === id);
   if (!obj) return;
 
-  if (tipo === 'receber' && obj.status !== 'recebido') {
-    obj.status = 'recebido';
-    obj.dataRecebimento = tx.data;
-    atualizarStatus('receber', obj.id, 'recebido', { data_recebimento: tx.data }).catch(e=>console.error(e));
-  } else if (tipo === 'pagar' && obj.status !== 'pago') {
-    obj.status = 'pago';
-    obj.dataPagamento = tx.data;
-    atualizarStatus('pagar', obj.id, 'pago', { data_pagamento: tx.data }).catch(e=>console.error(e));
-  }
+  darBaixaSeNecessario(tipo, obj, tx.data);
 
   ultimoManualLinks[tx.idx] = { tipo, id: obj.id };
+  salvarConciliacaoAceita(tx, tipo, obj.id);
   closeModal('modal-concilia-manual');
   renderPagar(); renderReceber(); renderDashboard();
   processarConciliacao(ultimoExtratoTxs);
@@ -2459,13 +2558,110 @@ function classificarComoRetiradaSocio(idx) {
   const entry = {
     id, forn: 'Alisson — Retirada Sócio', desc: tx.desc, centro: 'socio',
     data: tx.data, venc: tx.data, valor: Math.abs(tx.valor),
-    doc: '', barras: '', banco: '', obs: 'Classificado a partir da conciliação bancária',
+    doc: '', barras: '', banco: '', obs: 'Classificado a partir da conciliação bancária ('+(tx.conta||'')+')',
     status: 'pago', dataPagamento: tx.data
   };
   appData.pagar.push(entry);
-  salvarPagar(entry).catch(e=>alert('Erro ao salvar: '+e.message));
-  atualizarStatus('pagar', entry.id, 'pago', { data_pagamento: tx.data }).catch(e=>console.error(e));
+  salvarPagar(entry)
+    .then(()=>{
+      atualizarStatus('pagar', entry.id, 'pago', { data_pagamento: tx.data }).catch(e=>console.error(e));
+      salvarConciliacaoAceita(tx, 'pagar', entry.id);
+    })
+    .catch(e=>alert('Erro ao salvar: '+e.message));
+  ultimoManualLinks[tx.idx] = { tipo: 'pagar', id: entry.id };
   renderPagar(); renderDashboard();
+  processarConciliacao(ultimoExtratoTxs);
+}
+
+// ---- Incluir lançamento (provisão) direto na linha da tabela, sem modal ----
+let rascunhosProvisao = {}; // { txIdx: {nome, desc, centro, doc} } — preserva o que foi digitado entre rerenders
+
+function salvarProvisaoInline(idx) {
+  const tx = ultimoExtratoTxs.find(t => t.idx === idx);
+  if (!tx) return;
+  const rasc = rascunhosProvisao[idx] || {};
+  const nome = (rasc.nome||'').trim();
+  const desc = (rasc.desc ?? tx.desc).trim();
+  if (!nome) { alert('Preencha o fornecedor/cliente antes de salvar.'); return; }
+  const valor = Math.abs(tx.valor);
+  const doc = (rasc.doc||'').trim();
+  const ehReceber = tx.valor > 0;
+
+  if (ehReceber) {
+    const id = appData.receber.length ? Math.max(...appData.receber.map(r=>r.id))+1 : 1;
+    const entry = {
+      id, cliente: nome, os: doc, desc, data: tx.data, venc: tx.data, valor,
+      forma: 'transferencia', status: 'recebido', obs: 'Incluído a partir da conciliação bancária ('+(tx.conta||'')+')',
+      dataRecebimento: tx.data
+    };
+    appData.receber.push(entry);
+    salvarReceber(entry).then(()=>{
+      atualizarStatus('receber', entry.id, 'recebido', { data_recebimento: tx.data }).catch(e=>console.error(e));
+      salvarConciliacaoAceita(tx, 'receber', entry.id);
+    }).catch(e=>alert('Erro ao salvar: '+e.message));
+    ultimoManualLinks[tx.idx] = { tipo: 'receber', id: entry.id };
+    renderReceber();
+  } else {
+    const id = appData.pagar.length ? Math.max(...appData.pagar.map(p=>p.id))+1 : 1;
+    const entry = {
+      id, forn: nome, desc, centro: rasc.centro || 'fornecedores',
+      data: tx.data, venc: tx.data, valor, doc, barras: '', banco: '',
+      obs: 'Incluído a partir da conciliação bancária ('+(tx.conta||'')+')',
+      status: 'pago', dataPagamento: tx.data
+    };
+    appData.pagar.push(entry);
+    salvarPagar(entry).then(()=>{
+      atualizarStatus('pagar', entry.id, 'pago', { data_pagamento: tx.data }).catch(e=>console.error(e));
+      salvarConciliacaoAceita(tx, 'pagar', entry.id);
+    }).catch(e=>alert('Erro ao salvar: '+e.message));
+    ultimoManualLinks[tx.idx] = { tipo: 'pagar', id: entry.id };
+    renderPagar();
+  }
+  delete rascunhosProvisao[idx];
+  renderDashboard();
+  processarConciliacao(ultimoExtratoTxs);
+}
+
+function excluirDaConciliacao(tipo, id, txIdx) {
+  if (!confirm('Excluir este lançamento? Esta ação não pode ser desfeita e a transação volta a aparecer como "sem correspondência".')) return;
+  appData[tipo] = appData[tipo].filter(x=>x.id!==id);
+  deletarRegistro(tipo, id).catch(e=>alert('Erro ao excluir: '+e.message));
+  if (ultimoManualLinks[txIdx]) delete ultimoManualLinks[txIdx];
+  const salvo = conciliacoesSalvas.find(c => c.tipo_lancamento===tipo && c.lancamento_id===id);
+  if (salvo) {
+    conciliacoesSalvas = conciliacoesSalvas.filter(c => c.id !== salvo.id);
+    sbFetch(`conciliacoes?id=eq.${salvo.id}`, 'DELETE').catch(e=>console.error(e));
+  }
+  tipo==='receber' ? renderReceber() : renderPagar();
+  renderDashboard();
+  processarConciliacao(ultimoExtratoTxs);
+}
+
+function aceitarConciliacao(txIdx) {
+  const c = ultimoResultadoConciliacao?.conciliados.find(c => c.tx.idx === txIdx);
+  if (!c) return;
+  darBaixaSeNecessario(c.match.tipo, c.match.obj, c.tx.data);
+  salvarConciliacaoAceita(c.tx, c.match.tipo, c.match.obj.id);
+  c.aceito = true;
+  renderPagar(); renderReceber(); renderDashboard();
+  renderConciliacao(ultimoResultadoConciliacao);
+}
+
+function aceitarTodasSugestoes() {
+  const pendentes = (ultimoResultadoConciliacao?.conciliados||[]).filter(c=>!c.aceito);
+  if (!pendentes.length) return;
+  if (!confirm(`Aceitar as ${pendentes.length} sugestões automáticas pendentes? Os lançamentos correspondentes serão marcados como pagos/recebidos.`)) return;
+  pendentes.forEach(c => {
+    darBaixaSeNecessario(c.match.tipo, c.match.obj, c.tx.data);
+    salvarConciliacaoAceita(c.tx, c.match.tipo, c.match.obj.id);
+    c.aceito = true;
+  });
+  renderPagar(); renderReceber(); renderDashboard();
+  renderConciliacao(ultimoResultadoConciliacao);
+}
+
+function rejeitarConciliacao(txIdx) {
+  rejeitadosAuto.add(txIdx);
   processarConciliacao(ultimoExtratoTxs);
 }
 
@@ -2474,13 +2670,13 @@ function printConciliacao() {
   const res = ultimoResultadoConciliacao;
   const linhas = [
     ...res.conciliados.map(c => ({
-      data: c.tx.data, tipo: c.tx.valor>0?'Entrada':'Saída',
+      data: c.tx.data, conta: c.tx.conta||'—', tipo: c.tx.valor>0?'Entrada':'Saída',
       nome: c.match.nome, doc: c.match.obj.doc || c.match.obj.os || '—',
       centro: c.match.tipo==='pagar' ? (CC_NAMES[c.match.obj.centro]||c.match.obj.centro) : '—',
-      desc: c.match.obj.desc, valor: Math.abs(c.tx.valor), situacao: 'Conciliado'
+      desc: c.match.obj.desc, valor: Math.abs(c.tx.valor), situacao: c.aceito ? 'Conciliado (aceito)' : 'Conciliado (sugestão pendente)'
     })),
     ...res.semCorrespondencia.map(tx => ({
-      data: tx.data, tipo: tx.valor>0?'Entrada':'Saída',
+      data: tx.data, conta: tx.conta||'—', tipo: tx.valor>0?'Entrada':'Saída',
       nome: '—', doc: '—', centro: '—', desc: tx.desc, valor: Math.abs(tx.valor), situacao: 'Não identificado'
     }))
   ].sort((a,b)=>a.data.localeCompare(b.data));
@@ -2493,7 +2689,7 @@ function printConciliacao() {
   body{font-family:Arial,sans-serif;padding:30px;color:#222}
   h1{font-size:20px;margin-bottom:2px}
   .sub{color:#666;font-size:12px;margin-bottom:20px}
-  table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11px}
   th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
   th{background:#f5f5f5}
   .e{color:#1D9E75;font-weight:bold}.s{color:#E24B4A;font-weight:bold}
@@ -2503,12 +2699,12 @@ function printConciliacao() {
   <h1>Relatório de Conciliação Bancária</h1>
   <p class="sub">Período do extrato: ${fmtDate(res.periodoIni)} a ${fmtDate(res.periodoFim)} — Emitido em: ${new Date().toLocaleDateString('pt-BR')} — AutoGestão Veiga</p>
   <table>
-    <tr><th>Data</th><th>Tipo</th><th>Cliente/Fornecedor</th><th>Nº NF/OS/Doc.</th><th>Centro de Custo</th><th>Descrição</th><th>Valor</th><th>Situação</th></tr>
-    ${linhas.map(l=>`<tr class="${l.situacao==='Não identificado'?'naoident':''}"><td>${fmtDate(l.data)}</td><td>${l.tipo}</td><td>${l.nome}</td><td>${l.doc}</td><td>${l.centro}</td><td>${l.desc}</td><td class="${l.tipo==='Entrada'?'e':'s'}">${fmt(l.valor)}</td><td>${l.situacao}</td></tr>`).join('')}
-    <tr class="total"><td colspan="6">Totais</td><td class="e">${fmt(totE)}</td><td></td></tr>
-    <tr class="total"><td colspan="6"></td><td class="s">${fmt(totS)}</td><td></td></tr>
+    <tr><th>Data</th><th>Conta</th><th>Tipo</th><th>Cliente/Fornecedor</th><th>Nº NF/OS/Doc.</th><th>Centro de Custo</th><th>Descrição</th><th>Valor</th><th>Situação</th></tr>
+    ${linhas.map(l=>`<tr class="${l.situacao!=='Conciliado (aceito)'?'naoident':''}"><td>${fmtDate(l.data)}</td><td>${l.conta}</td><td>${l.tipo}</td><td>${l.nome}</td><td>${l.doc}</td><td>${l.centro}</td><td>${l.desc}</td><td class="${l.tipo==='Entrada'?'e':'s'}">${fmt(l.valor)}</td><td>${l.situacao}</td></tr>`).join('')}
+    <tr class="total"><td colspan="7">Totais</td><td class="e">${fmt(totE)}</td><td></td></tr>
+    <tr class="total"><td colspan="7"></td><td class="s">${fmt(totS)}</td><td></td></tr>
   </table>
-  <p style="font-size:11px;color:#888">Linhas em destaque (fundo amarelo) são movimentações do extrato bancário sem lançamento correspondente no sistema — merecem verificação antes do fechamento contábil.</p>
+  <p style="font-size:11px;color:#888">Linhas em destaque (fundo amarelo) são movimentações do extrato bancário sem lançamento correspondente no sistema, ou sugestões de conciliação automática ainda pendentes de aceite — merecem verificação antes do fechamento contábil.</p>
   </body></html>`;
   const w = window.open('', '_blank');
   w.document.write(html);
@@ -2516,36 +2712,97 @@ function printConciliacao() {
   w.print();
 }
 
+function baixarCSVConciliacao() {
+  if (!ultimoResultadoConciliacao) return;
+  const res = ultimoResultadoConciliacao;
+  const linhas = [
+    ...res.conciliados.map(c => ({
+      data: c.tx.data, conta: c.tx.conta||'', tipo: c.tx.valor>0?'Entrada':'Saída',
+      nome: c.match.nome, doc: c.match.obj.doc || c.match.obj.os || '',
+      centro: c.match.tipo==='pagar' ? (CC_NAMES[c.match.obj.centro]||c.match.obj.centro) : '',
+      desc: c.match.obj.desc, valor: Math.abs(c.tx.valor), situacao: c.aceito ? 'Conciliado (aceito)' : 'Conciliado (sugestão pendente)'
+    })),
+    ...res.semCorrespondencia.map(tx => ({
+      data: tx.data, conta: tx.conta||'', tipo: tx.valor>0?'Entrada':'Saída',
+      nome: '', doc: '', centro: '', desc: tx.desc, valor: Math.abs(tx.valor), situacao: 'Não identificado'
+    }))
+  ].sort((a,b)=>a.data.localeCompare(b.data));
+
+  const esc = v => `"${String(v??'').replace(/"/g,'""')}"`;
+  const header = ['Data','Conta','Tipo','Cliente/Fornecedor','Nº NF/OS/Doc','Centro de Custo','Descrição','Valor','Situação'];
+  const linhasCSV = linhas.map(l => [fmtDate(l.data), l.conta, l.tipo, l.nome, l.doc, l.centro, l.desc, l.valor.toFixed(2).replace('.',','), l.situacao].map(esc).join(';'));
+  const csv = '\uFEFF' + [header.map(esc).join(';'), ...linhasCSV].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `conciliacao_${res.periodoIni}_a_${res.periodoFim}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function renderConciliacao(res) {
   ultimoResultadoConciliacao = res;
   document.getElementById('conc-resultado').style.display = 'block';
+
+  const pendentes = res.conciliados.filter(c=>!c.aceito).length;
 
   document.getElementById('conc-metrics').innerHTML = `
     <div class="metric-card"><div class="metric-label">Período do extrato</div><div class="metric-value" style="font-size:16px">${fmtDate(res.periodoIni)} a ${fmtDate(res.periodoFim)}</div></div>
     <div class="metric-card"><div class="metric-label">Transações no extrato</div><div class="metric-value">${res.totalTx}</div></div>
     <div class="metric-card"><div class="metric-label">Conciliadas</div><div class="metric-value green">${res.conciliados.length}</div></div>
+    <div class="metric-card"><div class="metric-label">Sugestões pendentes de aceite</div><div class="metric-value ${pendentes?'amber':'green'}">${pendentes}</div></div>
     <div class="metric-card"><div class="metric-label">Sem correspondência</div><div class="metric-value red">${res.semCorrespondencia.length + res.sistemaSemCorrespondencia.length}</div></div>`;
 
+  document.getElementById('conc-btn-aceitar-todas').style.display = pendentes ? 'inline-flex' : 'none';
+
   document.getElementById('tbody-conc-ok').innerHTML = res.conciliados.map(c => `
-    <tr>
+    <tr style="${c.aceito?'':'background:#FFFBEB'}">
       <td>${fmtDate(c.tx.data)}</td>
+      <td><span style="font-size:11px;color:var(--text-secondary)">${c.tx.conta||'—'}</span></td>
       <td>${c.tx.desc}</td>
       <td style="color:${c.tx.valor>0?'var(--green-text)':'var(--red-text)'};font-weight:600">${fmt(Math.abs(c.tx.valor))}</td>
       <td>${c.match.nome} — ${c.match.obj.desc}${c.manual?' <span class="badge pendente" style="font-size:9px">manual</span>':''}</td>
-      <td><span class="badge ${c.match.obj.status}">${c.match.obj.status}</span></td>
-    </tr>`).join('') || '<tr><td colspan="5">Nenhuma</td></tr>';
-
-  document.getElementById('tbody-conc-extrato-sobra').innerHTML = res.semCorrespondencia.map(tx => `
-    <tr>
-      <td>${fmtDate(tx.data)}</td>
-      <td>${tx.desc}</td>
-      <td style="color:${tx.valor>0?'var(--green-text)':'var(--red-text)'};font-weight:600">${fmt(Math.abs(tx.valor))}</td>
-      <td><span class="badge ${tx.valor>0?'os':'pendente'}">${tx.valor>0?'Entrada':'Saída'}</span></td>
+      <td>${c.aceito
+          ? '<span class="badge recebido"><i class="ti ti-check"></i> Aceito</span>'
+          : '<span class="badge pendente"><i class="ti ti-clock"></i> Sugestão automática</span>'}</td>
       <td>
-        <button class="btn" style="padding:5px 10px;font-size:11px" onclick="abrirIdentificacaoManual(${tx.idx})"><i class="ti ti-hand-click"></i> Identificar manualmente</button>
-        ${tx.valor<0?`<button class="btn" style="padding:5px 10px;font-size:11px;margin-top:4px" onclick="classificarComoRetiradaSocio(${tx.idx})"><i class="ti ti-user"></i> Retirada Sócio</button>`:''}
+        ${!c.aceito ? `<button class="btn primary" style="padding:5px 8px;font-size:11px" onclick="aceitarConciliacao(${c.tx.idx})"><i class="ti ti-check"></i></button>
+        <button class="btn" style="padding:5px 8px;font-size:11px" onclick="rejeitarConciliacao(${c.tx.idx})"><i class="ti ti-x"></i></button>` : ''}
+        <button class="btn" style="padding:5px 8px;font-size:11px;color:var(--red-text)" onclick="excluirDaConciliacao('${c.match.tipo}',${c.match.obj.id},${c.tx.idx})"><i class="ti ti-trash"></i></button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="5">Nenhuma — tudo do extrato foi identificado</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7">Nenhuma</td></tr>';
+
+  document.getElementById('tbody-conc-extrato-sobra').innerHTML = res.semCorrespondencia.map(tx => {
+    const ehReceber = tx.valor > 0;
+    const rasc = rascunhosProvisao[tx.idx] || {};
+    return `
+    <tr>
+      <td>
+        <div>${fmtDate(tx.data)}</div>
+        <div style="font-size:11px;color:var(--text-secondary)">${tx.conta||'—'}</div>
+      </td>
+      <td>
+        <div style="color:${ehReceber?'var(--green-text)':'var(--red-text)'};font-weight:600">${fmt(Math.abs(tx.valor))}</div>
+        <span class="badge ${ehReceber?'os':'pendente'}" style="font-size:9px">${ehReceber?'Entrada':'Saída'}</span>
+      </td>
+      <td><input placeholder="${ehReceber?'Cliente':'Fornecedor'}..." value="${rasc.nome||''}" oninput="rascunhosProvisao[${tx.idx}]=Object.assign(rascunhosProvisao[${tx.idx}]||{},{nome:this.value})" style="font-size:12px;padding:6px 8px"></td>
+      <td><input value="${(rasc.desc??tx.desc)||''}" oninput="rascunhosProvisao[${tx.idx}]=Object.assign(rascunhosProvisao[${tx.idx}]||{},{desc:this.value})" style="font-size:12px;padding:6px 8px"></td>
+      <td>${ehReceber ? '<span style="font-size:11px;color:var(--text-secondary)">—</span>' : `
+        <select oninput="rascunhosProvisao[${tx.idx}]=Object.assign(rascunhosProvisao[${tx.idx}]||{},{centro:this.value})" style="font-size:12px;padding:6px 4px">
+          <option value="fornecedores" ${rasc.centro==='fornecedores'||!rasc.centro?'selected':''}>Fornecedores</option>
+          <option value="salario" ${rasc.centro==='salario'?'selected':''}>Salário/Pessoal</option>
+          <option value="impostos" ${rasc.centro==='impostos'?'selected':''}>Impostos</option>
+          <option value="fixas" ${rasc.centro==='fixas'?'selected':''}>Despesas Fixas</option>
+          <option value="socio" ${rasc.centro==='socio'?'selected':''}>Retirada Sócio</option>
+        </select>`}</td>
+      <td><input placeholder="NF/OS" value="${rasc.doc||''}" oninput="rascunhosProvisao[${tx.idx}]=Object.assign(rascunhosProvisao[${tx.idx}]||{},{doc:this.value})" style="font-size:12px;padding:6px 8px;width:70px"></td>
+      <td style="white-space:nowrap">
+        <button class="btn primary" style="padding:5px 8px;font-size:11px" title="Salvar lançamento" onclick="salvarProvisaoInline(${tx.idx})"><i class="ti ti-device-floppy"></i></button>
+        <button class="btn" style="padding:5px 8px;font-size:11px" title="Já existe no sistema — identificar" onclick="abrirIdentificacaoManual(${tx.idx})"><i class="ti ti-hand-click"></i></button>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7">Nenhuma — tudo do extrato foi identificado</td></tr>';
 
   document.getElementById('tbody-conc-sistema-sobra').innerHTML = res.sistemaSemCorrespondencia.map(i => `
     <tr>
