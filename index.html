@@ -2523,14 +2523,22 @@ function renderListaManual() {
 }
 
 function darBaixaSeNecessario(tipo, obj, dataTx) {
-  if (tipo === 'receber' && obj.status !== 'recebido') {
-    obj.status = 'recebido';
-    obj.dataRecebimento = dataTx;
-    atualizarStatus('receber', obj.id, 'recebido', { data_recebimento: dataTx }).catch(e=>console.error(e));
-  } else if (tipo === 'pagar' && obj.status !== 'pago') {
-    obj.status = 'pago';
-    obj.dataPagamento = dataTx;
-    atualizarStatus('pagar', obj.id, 'pago', { data_pagamento: dataTx }).catch(e=>console.error(e));
+  if (tipo === 'receber') {
+    const mudouStatus = obj.status !== 'recebido';
+    const mudouData = obj.dataRecebimento !== dataTx;
+    if (mudouStatus || mudouData) {
+      obj.status = 'recebido';
+      obj.dataRecebimento = dataTx;
+      atualizarStatus('receber', obj.id, 'recebido', { data_recebimento: dataTx }).catch(e=>console.error(e));
+    }
+  } else if (tipo === 'pagar') {
+    const mudouStatus = obj.status !== 'pago';
+    const mudouData = obj.dataPagamento !== dataTx;
+    if (mudouStatus || mudouData) {
+      obj.status = 'pago';
+      obj.dataPagamento = dataTx;
+      atualizarStatus('pagar', obj.id, 'pago', { data_pagamento: dataTx }).catch(e=>console.error(e));
+    }
   }
 }
 
