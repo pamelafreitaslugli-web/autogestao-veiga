@@ -108,6 +108,8 @@ tbody tr:hover td{background:var(--bg-secondary)}
 .badge.impostos{background:var(--amber-light);color:var(--amber-text)}
 .badge.fixas{background:var(--purple-light);color:var(--purple-text)}
 .badge.socio{background:var(--blue-light);color:var(--blue-text)}
+.badge.operacionais{background:#FCE7F3;color:#BE185D}
+.badge.financeiras{background:#FEF3C7;color:#92400E}
 
 /* AI */
 .ai-result{background:var(--bg-secondary);border-radius:var(--radius-md);padding:16px;margin-top:14px;font-size:13px;line-height:1.7;border-left:3px solid var(--green)}
@@ -314,6 +316,8 @@ tbody tr:hover td{background:var(--bg-secondary)}
           <option value="impostos">Impostos</option>
           <option value="fixas">Despesas Fixas</option>
           <option value="socio">Retirada Sócio</option>
+          <option value="operacionais">Despesas Operacionais</option>
+          <option value="financeiras">Rendimentos/Despesas Financeiras</option>
         </select>
         <select id="ordem-pagar" onchange="renderPagar()">
           <option value="">Ordenar por...</option>
@@ -411,6 +415,8 @@ tbody tr:hover td{background:var(--bg-secondary)}
           <button onclick="filtrarCC('impostos',this)">Impostos</button>
           <button onclick="filtrarCC('fixas',this)">Despesas Fixas</button>
           <button onclick="filtrarCC('socio',this)">Retirada Sócio</button>
+          <button onclick="filtrarCC('operacionais',this)">Despesas Operacionais</button>
+          <button onclick="filtrarCC('financeiras',this)">Rendimentos/Desp. Financeiras</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -587,6 +593,15 @@ tbody tr:hover td{background:var(--bg-secondary)}
       <div class="form-group"><label>Data de emissão</label><input type="date" id="r-data"></div>
       <div class="form-group"><label>Valor total (R$)</label><input type="number" id="r-valor" placeholder="0,00" step="0.01" min="0" oninput="atualizarResumoReceber()"></div>
     </div>
+    <div class="form-row">
+      <div class="form-group"><label>Centro de Custo</label>
+        <select id="r-centro">
+          <option value="vendas">Serviços/Vendas</option>
+          <option value="financeiras">Rendimentos Financeiros</option>
+        </select>
+      </div>
+      <div class="form-group"></div>
+    </div>
     <div class="form-row full">
       <div class="form-group"><label>Forma de pagamento</label>
         <select id="r-forma" onchange="toggleFormaReceber()">
@@ -691,6 +706,8 @@ tbody tr:hover td{background:var(--bg-secondary)}
           <option value="impostos">Impostos</option>
           <option value="fixas">Despesas Fixas</option>
           <option value="socio">Retirada Sócio</option>
+          <option value="operacionais">Despesas Operacionais</option>
+          <option value="financeiras">Rendimentos/Despesas Financeiras</option>
         </select>
       </div>
     </div>
@@ -803,7 +820,8 @@ async function carregarDados() {
       parcelas: r.parcelas||null,
       banco: r.banco||'',
       pagamentos: r.pagamentos||[],
-      dataRecebimento: r.data_recebimento||null
+      dataRecebimento: r.data_recebimento||null,
+      centro: r.centro||'vendas'
     }));
     appData.pagar = (pagar||[]).map(p => ({
       id: p.id, forn: p.forn||'', desc: p.descricao||'', centro: p.centro||'fornecedores',
@@ -857,7 +875,8 @@ async function salvarReceber(entry) {
     taxa_maquininha: entry.taxaMaquininha||null,
     taxa_antecipacao: entry.taxaAntecipacao||null,
     num_parcelas: entry.numParcelas||null,
-    parcelas: entry.parcelas||null
+    parcelas: entry.parcelas||null,
+    centro: entry.centro||'vendas'
   };
   const res = await sbFetch('receber', 'POST', row);
   entry.id = res[0].id;
@@ -907,7 +926,8 @@ async function atualizarRegistroReceber(id, dados) {
     taxa_antecipacao: dados.taxaAntecipacao||null,
     num_parcelas: dados.numParcelas||null,
     desconto_maquininha: dados.descontoMaquininha||null,
-    valor_liquido: dados.valorLiquido||null
+    valor_liquido: dados.valorLiquido||null,
+    centro: dados.centro||'vendas'
   });
   mostrarStatusDB('conectado');
 }
@@ -930,8 +950,8 @@ const fmt = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDig
 const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—';
 const today = () => new Date().toISOString().split('T')[0];
 const valorPagoTotal = p => (p.valor||0) + (p.jurosMulta||0);
-const CC_NAMES = {fornecedores:'Fornecedores',salario:'Salário/Pessoal',impostos:'Impostos',fixas:'Despesas Fixas',socio:'Retirada Sócio'};
-const CC_COLORS = {fornecedores:'#1D9E75',salario:'#185FA5',impostos:'#BA7517',fixas:'#8B5CF6',socio:'#0EA5E9'};
+const CC_NAMES = {fornecedores:'Fornecedores',salario:'Salário/Pessoal',impostos:'Impostos',fixas:'Despesas Fixas',socio:'Retirada Sócio',operacionais:'Despesas Operacionais',financeiras:'Rendimentos/Despesas Financeiras',vendas:'Serviços/Vendas'};
+const CC_COLORS = {fornecedores:'#1D9E75',salario:'#185FA5',impostos:'#BA7517',fixas:'#8B5CF6',socio:'#0EA5E9',operacionais:'#DB2777',financeiras:'#B45309'};
 
 // ============================================================
 // ESTADO
@@ -1028,7 +1048,7 @@ function renderDashboard() {
   }
 
   // Centros de custo mini
-  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0};
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0,operacionais:0,financeiras:0};
   appData.pagar.filter(p=>inP(p.data)).forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+p.valor);
   const maxCC = Math.max(...Object.values(ccMap), 1);
   document.getElementById('cc-mini').innerHTML = Object.entries(ccMap).map(([k,v])=>`
@@ -1410,7 +1430,7 @@ function addReceber() {
   const forma = document.getElementById('r-forma').value;
   const valor = parseFloat(document.getElementById('r-valor').value) || 0;
   const data = document.getElementById('r-data').value || today();
-  let entry = { id, cliente, desc, os: document.getElementById('r-os').value || 'OS-???', data, valor, forma, obs: document.getElementById('r-obs').value, banco: document.getElementById('r-banco')?.value||'', status: 'pendente' };
+  let entry = { id, cliente, desc, os: document.getElementById('r-os').value || 'OS-???', data, valor, forma, obs: document.getElementById('r-obs').value, banco: document.getElementById('r-banco')?.value||'', status: 'pendente', centro: document.getElementById('r-centro')?.value||'vendas' };
 
   if (['pix','dinheiro','transferencia'].includes(forma)) {
     entry.venc = document.getElementById('r-venc-simples').value || today();
@@ -1456,6 +1476,7 @@ function addReceber() {
   appData.receber.push(entry);
   salvarReceber(entry).catch(e=>alert('Erro ao salvar: '+e.message));
   ['r-cliente','r-os','r-desc','r-data','r-valor','r-obs','r-venc-simples'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const rCentroEl = document.getElementById('r-centro'); if (rCentroEl) rCentroEl.value = 'vendas';
   closeModal('modal-add-receber');
   renderReceber(); renderDashboard();
   // Also refresh LC if active
@@ -1536,7 +1557,7 @@ function renderLC() {
   }
 
   // CC Resumo
-  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0};
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0,operacionais:0,financeiras:0};
   saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+valorPagoTotal(p));
   document.getElementById('lc-cc-resumo').innerHTML = Object.entries(ccMap).map(([k,v])=>`
     <div class="cc-row">
@@ -1575,7 +1596,7 @@ function printLC() {
   const saidas = appData.pagar.filter(p=>p.status==='pago'&&inP(p.dataPagamento||p.data));
   const totE = entradas.reduce((s,r)=>s+r.valor,0);
   const totS = saidas.reduce((s,p)=>s+valorPagoTotal(p),0);
-  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0};
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0,operacionais:0,financeiras:0};
   saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+valorPagoTotal(p));
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Livro Caixa — ${meses[mes]}/${ano}</title>
@@ -1611,7 +1632,7 @@ function renderCC() {
   const ano = parseInt(document.getElementById('cc-ano').value);
   const inP = d => { const dt = new Date(d+'T00:00:00'); return dt.getMonth()===mes && dt.getFullYear()===ano; };
   const saidas = appData.pagar.filter(p=>inP(p.data));
-  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0};
+  const ccMap = {fornecedores:0,salario:0,impostos:0,fixas:0,socio:0,operacionais:0,financeiras:0};
   saidas.forEach(p=>ccMap[p.centro]=(ccMap[p.centro]||0)+valorPagoTotal(p));
   const total = Object.values(ccMap).reduce((s,v)=>s+v,0);
 
@@ -1818,6 +1839,8 @@ function showAIResult(d) {
       <option value="impostos" ${d.centro_custo==='impostos'?'selected':''}>Impostos</option>
       <option value="fixas" ${d.centro_custo==='fixas'?'selected':''}>Despesas Fixas</option>
       <option value="socio" ${d.centro_custo==='socio'?'selected':''}>Retirada Sócio</option>
+      <option value="operacionais" ${d.centro_custo==='operacionais'?'selected':''}>Despesas Operacionais</option>
+      <option value="financeiras" ${d.centro_custo==='financeiras'?'selected':''}>Rendimentos/Despesas Financeiras</option>
     </select></div></div>
     <div class="form-row full"><div class="form-group"><label>Descrição</label><input id="ai-desc" value="${d.descricao||''}"></div></div>
     <div class="form-row three">
@@ -2046,6 +2069,7 @@ function editarReceber(id) {
   document.getElementById('er-forma').value = r.forma || 'pix';
   document.getElementById('er-banco').value = r.banco || '';
   document.getElementById('er-obs').value = r.obs || '';
+  document.getElementById('er-centro').value = r.centro || 'vendas';
   const vencEl = document.getElementById('er-venc');
   vencEl.value = r.venc || today();
   // Load cartao fields if applicable
@@ -2073,6 +2097,7 @@ function salvarEdicaoReceber() {
   r.forma = document.getElementById('er-forma').value;
   r.banco = document.getElementById('er-banco')?.value || '';
   r.obs = document.getElementById('er-obs').value;
+  r.centro = document.getElementById('er-centro')?.value || 'vendas';
   r.venc = document.getElementById('er-venc').value || today();
   // Update cartao fields if applicable
   if (['credito','debito'].includes(r.forma)) {
@@ -2600,7 +2625,7 @@ function salvarProvisaoInline(idx) {
     const entry = {
       id, cliente: nome, os: doc, desc, data: tx.data, venc: tx.data, valor,
       forma: 'transferencia', status: 'recebido', obs: 'Incluído a partir da conciliação bancária ('+(tx.conta||'')+')',
-      dataRecebimento: tx.data
+      dataRecebimento: tx.data, centro: rasc.centro || 'vendas'
     };
     appData.receber.push(entry);
     salvarReceber(entry).then(()=>{
@@ -2680,7 +2705,7 @@ function printConciliacao() {
     ...res.conciliados.map(c => ({
       data: c.tx.data, conta: c.tx.conta||'—', tipo: c.tx.valor>0?'Entrada':'Saída',
       nome: c.match.nome, doc: c.match.obj.doc || c.match.obj.os || '—',
-      centro: c.match.tipo==='pagar' ? (CC_NAMES[c.match.obj.centro]||c.match.obj.centro) : '—',
+      centro: CC_NAMES[c.match.obj.centro]||c.match.obj.centro||'—',
       desc: c.match.obj.desc, valor: Math.abs(c.tx.valor), situacao: c.aceito ? 'Conciliado (aceito)' : 'Conciliado (sugestão pendente)'
     })),
     ...res.semCorrespondencia.map(tx => ({
@@ -2727,7 +2752,7 @@ function baixarCSVConciliacao() {
     ...res.conciliados.map(c => ({
       data: c.tx.data, conta: c.tx.conta||'', tipo: c.tx.valor>0?'Entrada':'Saída',
       nome: c.match.nome, doc: c.match.obj.doc || c.match.obj.os || '',
-      centro: c.match.tipo==='pagar' ? (CC_NAMES[c.match.obj.centro]||c.match.obj.centro) : '',
+      centro: CC_NAMES[c.match.obj.centro]||c.match.obj.centro||'',
       desc: c.match.obj.desc, valor: Math.abs(c.tx.valor), situacao: c.aceito ? 'Conciliado (aceito)' : 'Conciliado (sugestão pendente)'
     })),
     ...res.semCorrespondencia.map(tx => ({
@@ -2796,13 +2821,19 @@ function renderConciliacao(res) {
       </td>
       <td><input placeholder="${ehReceber?'Cliente':'Fornecedor'}..." value="${rasc.nome||''}" oninput="rascunhosProvisao[${tx.idx}]=Object.assign(rascunhosProvisao[${tx.idx}]||{},{nome:this.value})" style="font-size:12px;padding:6px 8px"></td>
       <td><input value="${(rasc.desc??tx.desc)||''}" oninput="rascunhosProvisao[${tx.idx}]=Object.assign(rascunhosProvisao[${tx.idx}]||{},{desc:this.value})" style="font-size:12px;padding:6px 8px"></td>
-      <td>${ehReceber ? '<span style="font-size:11px;color:var(--text-secondary)">—</span>' : `
+      <td>${ehReceber ? `
+        <select oninput="rascunhosProvisao[${tx.idx}]=Object.assign(rascunhosProvisao[${tx.idx}]||{},{centro:this.value})" style="font-size:12px;padding:6px 4px">
+          <option value="vendas" ${rasc.centro==='vendas'||!rasc.centro?'selected':''}>Serviços/Vendas</option>
+          <option value="financeiras" ${rasc.centro==='financeiras'?'selected':''}>Rendimentos Financeiros</option>
+        </select>` : `
         <select oninput="rascunhosProvisao[${tx.idx}]=Object.assign(rascunhosProvisao[${tx.idx}]||{},{centro:this.value})" style="font-size:12px;padding:6px 4px">
           <option value="fornecedores" ${rasc.centro==='fornecedores'||!rasc.centro?'selected':''}>Fornecedores</option>
           <option value="salario" ${rasc.centro==='salario'?'selected':''}>Salário/Pessoal</option>
           <option value="impostos" ${rasc.centro==='impostos'?'selected':''}>Impostos</option>
           <option value="fixas" ${rasc.centro==='fixas'?'selected':''}>Despesas Fixas</option>
           <option value="socio" ${rasc.centro==='socio'?'selected':''}>Retirada Sócio</option>
+          <option value="operacionais" ${rasc.centro==='operacionais'?'selected':''}>Despesas Operacionais</option>
+          <option value="financeiras" ${rasc.centro==='financeiras'?'selected':''}>Rendimentos/Despesas Financeiras</option>
         </select>`}</td>
       <td><input placeholder="NF/OS" value="${rasc.doc||''}" oninput="rascunhosProvisao[${tx.idx}]=Object.assign(rascunhosProvisao[${tx.idx}]||{},{doc:this.value})" style="font-size:12px;padding:6px 8px;width:70px"></td>
       <td style="white-space:nowrap">
@@ -2908,7 +2939,12 @@ carregarDados();
         <option value="Itaú">Itaú</option>
         <option value="Outro">Outro</option>
       </select>
-    </div><div class="form-group"></div></div>
+    </div><div class="form-group"><label>Centro de Custo</label>
+      <select id="er-centro">
+        <option value="vendas">Serviços/Vendas</option>
+        <option value="financeiras">Rendimentos Financeiros</option>
+      </select>
+    </div></div>
     <div class="form-row full"><div class="form-group"><label>Observações</label><textarea id="er-obs"></textarea></div></div>
     <div class="btn-row"><button class="btn primary" onclick="salvarEdicaoReceber()"><i class="ti ti-check"></i> Salvar alterações</button><button class="btn" onclick="closeModal('modal-editar-receber')">Cancelar</button></div>
   </div>
@@ -2919,7 +2955,7 @@ carregarDados();
   <div class="modal">
     <div class="modal-header"><span class="modal-title"><i class="ti ti-edit"></i> Editar Conta a Pagar</span><button class="close-btn" onclick="closeModal('modal-editar-pagar')">×</button></div>
     <input type="hidden" id="ep-id">
-    <div class="form-row"><div class="form-group"><label>Fornecedor / Credor</label><input id="ep-forn"></div><div class="form-group"><label>Centro de Custo</label><select id="ep-centro"><option value="fornecedores">Fornecedores</option><option value="salario">Salário / Pessoal</option><option value="impostos">Impostos</option><option value="fixas">Despesas Fixas</option><option value="socio">Retirada Sócio</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label>Fornecedor / Credor</label><input id="ep-forn"></div><div class="form-group"><label>Centro de Custo</label><select id="ep-centro"><option value="fornecedores">Fornecedores</option><option value="salario">Salário / Pessoal</option><option value="impostos">Impostos</option><option value="fixas">Despesas Fixas</option><option value="socio">Retirada Sócio</option><option value="operacionais">Despesas Operacionais</option><option value="financeiras">Rendimentos/Despesas Financeiras</option></select></div></div>
     <div class="form-row full"><div class="form-group"><label>Descrição</label><input id="ep-desc"></div></div>
     <div class="form-row"><div class="form-group"><label>Data de emissão</label><input type="date" id="ep-data"></div><div class="form-group"><label>Data de vencimento</label><input type="date" id="ep-venc"></div></div>
     <div class="form-row"><div class="form-group"><label>Valor (R$)</label><input type="number" id="ep-valor" step="0.01" min="0"></div><div class="form-group"><label>N° Documento</label><input id="ep-doc"></div></div>
