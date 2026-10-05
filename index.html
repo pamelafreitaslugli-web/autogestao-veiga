@@ -441,6 +441,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
           <button class="active" id="tab-boleto" onclick="setDocTab('boleto',this)"><i class="ti ti-barcode"></i> Boleto / Nota Fiscal</button>
           <button id="tab-os" onclick="setDocTab('os',this)"><i class="ti ti-clipboard-list"></i> Ordem de Serviço</button>
           <button id="tab-lote" onclick="setDocTab('lote',this)"><i class="ti ti-files"></i> Boletos em Lote (PDF)</button>
+          <button id="tab-nf" onclick="setDocTab('nf',this)"><i class="ti ti-receipt"></i> Nota Fiscal de Compra</button>
         </div>
 
         <div id="doc-upload-area">
@@ -495,6 +496,18 @@ tbody tr:hover td{background:var(--bg-secondary)}
           </div>
           <div id="lote-progresso" style="margin-top:12px;font-size:13px"></div>
           <div id="lote-revisao"></div>
+        </div>
+        <!-- ===== NOTA FISCAL DE COMPRA ===== -->
+        <div id="nf-area" style="display:none">
+          <div class="upload-area" onclick="document.getElementById('nf-input').click()" id="nf-drop">
+            <i class="ti ti-receipt icon"></i>
+            <p>Clique ou arraste o <strong>XML</strong> da NF-e ou o <strong>DANFE</strong> digitalizado (PDF/foto)</p>
+            <p class="small">XML é lido na hora, sem IA e sem custo · DANFE é lido pela IA</p>
+          </div>
+          <input type="file" id="nf-input" accept=".xml,text/xml,application/xml,application/pdf,.pdf,image/*" style="display:none" onchange="nfArquivo(this.files[0])">
+          <div class="btn-row" style="margin-top:8px"><button class="btn" onclick="nfAbrirFormulario({})"><i class="ti ti-pencil"></i> Preencher manualmente</button></div>
+          <div id="nf-status" style="margin-top:10px;font-size:13px"></div>
+          <div id="nf-form"></div>
         </div>
       </div>
 
@@ -756,7 +769,7 @@ tbody tr:hover td{background:var(--bg-secondary)}
       <div class="form-group"><label>N° Documento</label><input id="p-doc" placeholder="NF / boleto / DAS..."></div>
     </div>
     <div class="form-row full"><div class="form-group"><label>Código de barras <span style="font-size:11px;color:var(--text-secondary)">(opcional)</span></label><input id="p-barras" placeholder="Cole aqui o código de barras do boleto..." style="font-family:monospace;font-size:12px"></div></div>
-    <div class="form-row"><div class="form-group"><label>Banco de pagamento</label><select id="p-banco"><option value="">— Não informado —</option><option value="Santander">Santander</option><option value="Itaú">Itaú</option><option value="Outro">Outro</option></select></div><div class="form-group"></div></div>
+    <div class="form-row"><div class="form-group"><label>Banco de pagamento</label><select id="p-banco"><option value="">— Não informado —</option><option value="Santander">Santander</option><option value="Itaú">Itaú</option><option value="Outro">Outro</option></select></div><div class="form-group"><label>Forma de pagamento</label><select id="p-forma"><option value="">— Não informada —</option><option value="boleto">Boleto</option><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option><option value="debito">Cartão de débito</option><option value="credito">Cartão de crédito</option><option value="transferencia">Transferência</option></select></div></div>
     <div class="form-row full">
       <div class="form-group"><label>Observações</label><textarea id="p-obs" placeholder="Notas adicionais..."></textarea></div>
     </div>
@@ -862,7 +875,8 @@ async function carregarDados() {
       doc: p.doc||'', obs: p.obs||'', status: p.status||'pendente',
       barras: p.barras||'', banco: p.banco||'',
       dataPagamento: p.data_pagamento||null,
-      jurosMulta: Number(p.juros_multa)||0
+      jurosMulta: Number(p.juros_multa)||0,
+      forma: p.forma||'', nf: p.nf||''
     }));
     renderDashboard();
     mostrarStatusDB('conectado');
@@ -924,9 +938,25 @@ async function salvarPagar(entry) {
     doc: entry.doc, obs: entry.obs, status: entry.status,
     barras: entry.barras||null, banco: entry.banco||null
   };
-  const res = await sbFetch('pagar', 'POST', row);
+  if (entry.status === 'pago' && entry.dataPagamento) row.data_pagamento = entry.dataPagamento;
+  if (entry.forma) row.forma = entry.forma;
+  if (entry.nf) row.nf = entry.nf;
+  const res = await sbComColunasNovas(r => sbFetch('pagar', 'POST', r), row);
   entry.id = res[0].id;
   mostrarStatusDB('conectado');
+}
+
+// Se as colunas "forma" e "nf" ainda não foram criadas no Supabase, salva sem elas em vez de travar
+let _avisoColunasNF = false;
+async function sbComColunasNovas(fn, body) {
+  try { return await fn(body); }
+  catch (e) {
+    if (body.forma === undefined && body.nf === undefined) throw e;
+    if (!/forma|\bnf\b|column|schema/i.test(e.message || '')) throw e;
+    const b2 = { ...body }; delete b2.forma; delete b2.nf;
+    if (!_avisoColunasNF) { _avisoColunasNF = true; alert('Aviso: as colunas "forma" e "nf" ainda não existem no Supabase.\nO lançamento foi salvo, mas sem a forma de pagamento e o número da NF.\nRode o comando SQL de atualização para ativar.'); }
+    return await fn(b2);
+  }
 }
 
 async function atualizarStatus(tabela, id, status, extra) {
@@ -967,11 +997,14 @@ async function atualizarRegistroReceber(id, dados) {
 
 async function atualizarRegistroPagar(id, dados) {
   mostrarStatusDB('salvando');
-  await sbFetch(`pagar?id=eq.${id}`, 'PATCH', {
+  const body = {
     forn: dados.forn, descricao: dados.desc, centro: dados.centro,
     data: dados.data, venc: dados.venc, valor: dados.valor,
     doc: dados.doc, obs: dados.obs, barras: dados.barras||null, banco: dados.banco||null
-  });
+  };
+  if (dados.forma) body.forma = dados.forma;
+  if (dados.nf) body.nf = dados.nf;
+  await sbComColunasNovas(b => sbFetch(`pagar?id=eq.${id}`, 'PATCH', b), body);
   mostrarStatusDB('conectado');
 }
 </script>
@@ -983,6 +1016,7 @@ const fmt = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDig
 const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—';
 const today = () => new Date().toISOString().split('T')[0];
 const valorPagoTotal = p => (p.valor||0) + (p.jurosMulta||0);
+const FORMA_NAMES = {boleto:'Boleto',pix:'Pix',dinheiro:'Dinheiro',debito:'Cartão de débito',credito:'Cartão de crédito',transferencia:'Transferência'};
 const CC_NAMES = {fornecedores:'Fornecedores',salario:'Salário/Pessoal',impostos:'Impostos',fixas:'Despesas Fixas',socio:'Retirada Sócio',operacionais:'Despesas Operacionais',financeiras:'Rendimentos/Despesas Financeiras',vendas:'Serviços/Vendas'};
 const CC_COLORS = {fornecedores:'#1D9E75',salario:'#185FA5',impostos:'#BA7517',fixas:'#8B5CF6',socio:'#0EA5E9',operacionais:'#DB2777',financeiras:'#B45309'};
 
@@ -1388,11 +1422,11 @@ function renderPagar() {
       <td><span class="badge ${p.centro}">${CC_NAMES[p.centro]||p.centro}</span></td>
       <td>${fmtDate(p.venc)}</td>
       <td style="font-size:12px;color:var(--text-secondary)">
-        ${p.doc||'—'}
+        ${p.doc||'—'}${p.nf && !(p.doc||'').includes(p.nf)?`<br><span style="font-size:11px">NF ${p.nf}</span>`:''}
         ${p.barras?`<br><span style="font-size:10px;color:var(--text-hint);font-family:monospace;cursor:pointer" onclick="copiarBarras('${p.barras}')" title="Clique para copiar o código de barras"><i class="ti ti-barcode" style="font-size:11px"></i> ${p.barras.substring(0,20)}...</span>`:''}
       </td>
       <td style="font-weight:600;color:var(--red)">${fmt(p.valor)}</td>
-      <td><span class="badge ${p.status}">${p.status}</span>${p.banco?`<br><span style="font-size:11px;color:var(--text-secondary)">${p.banco}</span>`:''}</td>
+      <td><span class="badge ${p.status}">${p.status}</span>${p.forma?`<br><span style="font-size:11px;color:var(--text-secondary)">${FORMA_NAMES[p.forma]||p.forma}</span>`:''}${p.banco?`<br><span style="font-size:11px;color:var(--text-secondary)">${p.banco}</span>`:''}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap">
         ${p.status!=='pago'?`<button class="btn sm primary" onclick="confirmarLiquidacao('pagar',${p.id})"><i class="ti ti-check"></i> Pagar</button>`:''}
         <button class="btn sm" onclick="editarPagar(${p.id})" title="Editar"><i class="ti ti-pencil"></i></button>
@@ -1531,6 +1565,7 @@ function addPagar(overrides={}) {
     barras: overrides.barras || document.getElementById('p-barras')?.value || '',
     banco: document.getElementById('p-banco')?.value || '',
     obs: overrides.obs || document.getElementById('p-obs').value || '',
+    forma: document.getElementById('p-forma')?.value || '',
     status: 'pendente'
   };
   const duplicado = appData.pagar.some(p =>
@@ -1544,7 +1579,7 @@ function addPagar(overrides={}) {
   }
   appData.pagar.push(entry);
   salvarPagar(entry).catch(e=>alert('Erro ao salvar: '+e.message));
-  ['p-forn','p-desc','p-data','p-venc','p-valor','p-doc','p-obs','p-barras','p-banco'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['p-forn','p-desc','p-data','p-venc','p-valor','p-doc','p-obs','p-barras','p-banco','p-forma'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   closeModal('modal-add-pagar');
   renderPagar(); renderDashboard();
   if (document.getElementById('panel-livrocaixa').classList.contains('active')) renderLC();
@@ -1708,7 +1743,7 @@ function filtrarCC(centro, btn) {
       <td>${p.desc}</td>
       <td>${fmtDate(p.venc)}</td>
       <td style="font-weight:600;color:var(--red)">${fmt(p.valor)}</td>
-      <td><span class="badge ${p.status}">${p.status}</span>${p.banco?`<br><span style="font-size:11px;color:var(--text-secondary)">${p.banco}</span>`:''}</td>
+      <td><span class="badge ${p.status}">${p.status}</span>${p.forma?`<br><span style="font-size:11px;color:var(--text-secondary)">${FORMA_NAMES[p.forma]||p.forma}</span>`:''}${p.banco?`<br><span style="font-size:11px;color:var(--text-secondary)">${p.banco}</span>`:''}</td>
     </tr>`).join('');
 }
 
@@ -1719,10 +1754,11 @@ function setDocTab(tab, btn) {
   docTab = tab;
   document.querySelectorAll('#panel-documentos .tab-inner button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  const lote = tab === 'lote';
+  const lote = tab === 'lote', nf = tab === 'nf';
   document.getElementById('lote-area').style.display = lote ? 'block' : 'none';
-  document.getElementById('doc-upload-area').style.display = lote ? 'none' : 'block';
-  if (lote) document.getElementById('ai-result-area').style.display = 'none';
+  document.getElementById('nf-area').style.display = nf ? 'block' : 'none';
+  document.getElementById('doc-upload-area').style.display = (lote || nf) ? 'none' : 'block';
+  if (lote || nf) document.getElementById('ai-result-area').style.display = 'none';
 }
 
 function handleFile(input) {
@@ -2005,9 +2041,21 @@ function lancarDoAI() {
       doc: aiData.numero_documento || '',
       barras: document.getElementById('ai-barras')?.value || aiData.codigo_barras || '',
       obs: aiData.observacoes || '',
+      forma: (document.getElementById('ai-barras')?.value || aiData.codigo_barras) ? 'boleto' : '',
       status: 'pendente'
     };
-    const duplicado = appData.pagar.some(p =>
+    const vinc = pEntry.valor ? acharContaAberta(pEntry.forn, pEntry.valor, pEntry.venc) : null;
+    if (vinc) {
+      const c = vinc.conta;
+      if (confirm(`Este boleto parece corresponder a uma conta já lançada:\n\n${c.forn} — ${c.desc}\nVencimento: ${fmtDate(c.venc)} | Valor: ${fmt(c.valor)}\n\nOK = completar o código de barras nessa conta (não cria outra)\nCancelar = lançar como conta nova`)) {
+        completarContaComBoleto(c, pEntry.barras, pEntry.venc)
+          .then(() => { alert('✓ Código de barras incluído na conta já existente.'); renderPagar(); renderDashboard(); })
+          .catch(e => alert('Erro ao salvar: ' + e.message));
+        resetDoc();
+        return;
+      }
+    }
+    const duplicado = !vinc && appData.pagar.some(p =>
       p.forn.trim().toLowerCase() === pEntry.forn.trim().toLowerCase() &&
       p.venc === pEntry.venc &&
       Math.abs(p.valor - pEntry.valor) < 0.01
@@ -2169,6 +2217,7 @@ function editarPagar(id) {
   document.getElementById('ep-barras').value = p.barras || '';
   document.getElementById('ep-banco').value = p.banco || '';
   document.getElementById('ep-obs').value = p.obs || '';
+  document.getElementById('ep-forma').value = p.forma || '';
   openModal('modal-editar-pagar');
 }
 
@@ -2186,6 +2235,7 @@ function salvarEdicaoPagar() {
   p.barras = document.getElementById('ep-barras').value || '';
   p.banco = document.getElementById('ep-banco').value || '';
   p.obs = document.getElementById('ep-obs').value;
+  p.forma = document.getElementById('ep-forma').value || '';
   atualizarRegistroPagar(id, p).catch(e=>alert('Erro ao salvar: '+e.message));
   closeModal('modal-editar-pagar');
   renderPagar(); renderDashboard();
@@ -2342,6 +2392,8 @@ let contasCarregadas = [];   // [{nome, arquivo, qtd}]
 let proximoIdxTx = 0;
 let conciliacoesSalvas = []; // histórico permanente vindo do Supabase (tabela conciliacoes)
 let rejeitadosAuto = new Set(); // idx de tx cuja sugestão automática foi rejeitada nesta sessão
+
+function foraDoExtrato(p) { return p.forma === 'credito' || p.forma === 'dinheiro'; }
 
 function normalizeStr(s) {
   return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
@@ -2501,7 +2553,7 @@ function processarConciliacao(txs) {
         nome: r.cliente
       }));
     } else {
-      candidatos = appData.pagar.filter(p => !usados.has('p'+p.id)).map(p => ({
+      candidatos = appData.pagar.filter(p => !usados.has('p'+p.id) && !foraDoExtrato(p)).map(p => ({
         obj: p, tipo: 'pagar',
         valorComp: valorPagoTotal(p),
         dataComp: p.dataPagamento || p.venc || p.data,
@@ -2529,7 +2581,7 @@ function processarConciliacao(txs) {
   const sistemaSemCorrespondencia = [
     ...appData.receber.filter(r => r.status==='recebido' && !usados.has('r'+r.id) && dentroDoPeriodo(r.dataRecebimento||r.data))
       .map(r => ({ tipo:'receber', obj:r, nome:r.cliente, desc:r.desc, data:r.dataRecebimento||r.data, valor:r.valorLiquido!=null?r.valorLiquido:r.valor })),
-    ...appData.pagar.filter(p => p.status==='pago' && !usados.has('p'+p.id) && dentroDoPeriodo(p.dataPagamento||p.data))
+    ...appData.pagar.filter(p => p.status==='pago' && !usados.has('p'+p.id) && !foraDoExtrato(p) && dentroDoPeriodo(p.dataPagamento||p.data))
       .map(p => ({ tipo:'pagar', obj:p, nome:p.forn, desc:p.desc, data:p.dataPagamento||p.data, valor:valorPagoTotal(p) }))
   ];
 
@@ -3004,7 +3056,7 @@ carregarDados();
         <option value="Itaú">Itaú</option>
         <option value="Outro">Outro</option>
       </select>
-    </div><div class="form-group"></div></div>
+    </div><div class="form-group"><label>Forma de pagamento</label><select id="ep-forma"><option value="">— Não informada —</option><option value="boleto">Boleto</option><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option><option value="debito">Cartão de débito</option><option value="credito">Cartão de crédito</option><option value="transferencia">Transferência</option></select></div></div>
     <div class="form-row full"><div class="form-group"><label>Observações</label><textarea id="ep-obs"></textarea></div></div>
     <div class="btn-row"><button class="btn primary" onclick="salvarEdicaoPagar()"><i class="ti ti-check"></i> Salvar alterações</button><button class="btn" onclick="closeModal('modal-editar-pagar')">Cancelar</button></div>
   </div>
@@ -3154,14 +3206,14 @@ Regras:
 
 const LOTE_PROMPT_LINHA = `Esta é a digitalização de um boleto. Transcreva SOMENTE a linha digitável (sequência numérica longa, normalmente acima do código de barras ou no topo da ficha de compensação). Leia cada dígito com o máximo cuidado. Responda SOMENTE com JSON: {"linha_digitavel":""}`;
 
-async function chamarOpenAIImagens(imagens, prompt) {
+async function chamarOpenAIImagens(imagens, prompt, maxTokens) {
   const apiKey = getApiKey();
   const content = [{ type: 'text', text: prompt }, ...imagens.map(u => ({ type: 'image_url', image_url: { url: u, detail: 'high' } }))];
   for (let tentativa = 0; tentativa < 4; tentativa++) {
     const resp = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: 'gpt-4o', max_tokens: 800, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content }] })
+      body: JSON.stringify({ model: 'gpt-4o', max_tokens: maxTokens || 800, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content }] })
     });
     if (resp.status === 429 || resp.status >= 500) { await new Promise(r => setTimeout(r, 2000 * (tentativa + 1))); continue; }
     if (!resp.ok) { let m = 'Erro na API OpenAI'; try { m = (await resp.json()).error?.message || m; } catch (e) {} throw new Error(m); }
@@ -3301,7 +3353,13 @@ function loteConferirComCodigo(it) {
 
 function loteMarcarDuplicados() {
   const norm = s => (s || '').trim().toLowerCase();
+  const usadas = new Set();
+  loteItens.forEach(it => {
+    it.vinculo = (it.forn && it.valor) ? acharContaAberta(it.forn, it.valor, it.venc, usadas) : null;
+    if (it.vinculo && it.usarVinculo !== false) usadas.add(it.vinculo.conta.id);
+  });
   loteItens.forEach((it, i) => {
+    if (it.vinculo && it.usarVinculo !== false) { it.dup = ''; return; }
     const noSistema = appData.pagar.some(p => norm(p.forn) === norm(it.forn) && p.venc === it.venc && Math.abs(p.valor - it.valor) < 0.01);
     const noLote = loteItens.some((o, j) => j < i && norm(o.forn) === norm(it.forn) && o.venc === it.venc && Math.abs(o.valor - it.valor) < 0.01);
     it.dup = noSistema ? 'Já lançado no sistema' : (noLote ? 'Repetido neste lote' : '');
@@ -3309,7 +3367,7 @@ function loteMarcarDuplicados() {
 }
 
 // ---------- Tela de revisão ----------
-function loteStatusHtml(it) {
+function loteStatusHtml(it, i) {
   if (it.erroLeitura) return `<span class="badge vencido" title="${escH(it.erroLeitura)}">Erro na leitura</span>`;
   const v = it.val || {};
   let b;
@@ -3319,7 +3377,14 @@ function loteStatusHtml(it) {
   if (v.valido && v.tipo === 'arrecadacao' && !v.valor) b += ` <span style="font-size:11px;color:var(--text-secondary)">valor não consta no código</span>`;
   const extra = [...(it.avisos || []), ...(!v.valido && v.motivo ? [v.motivo] : [])].map(a => `<div style="font-size:11px;color:var(--amber-text);margin-top:3px">${escH(a)}</div>`).join('');
   const dup = it.dup ? `<div style="margin-top:3px"><span class="badge vencido">⚠ ${escH(it.dup)}</span></div>` : '';
-  return b + extra + dup;
+  let vinc = '';
+  if (it.vinculo) {
+    const c = it.vinculo.conta;
+    vinc = `<label style="display:flex;gap:6px;align-items:flex-start;margin-top:5px;font-size:11px;background:var(--blue-light);color:var(--blue-text);padding:5px 7px;border-radius:6px;cursor:pointer">
+      <input type="checkbox" ${it.usarVinculo !== false ? 'checked' : ''} onchange="loteItens[${i}].usarVinculo=this.checked;loteMarcarDuplicados();loteRenderRevisao()" style="margin-top:1px">
+      <span><strong>Completar conta já lançada:</strong> ${escH(c.forn)} — ${escH(c.desc)} · venc. ${fmtDate(c.venc)} · ${fmt(c.valor)}${it.vinculo.porValor ? '<br><em>Nome do beneficiário diferente — achado por valor e vencimento, confira.</em>' : ''}</span></label>`;
+  }
+  return b + extra + vinc + dup;
 }
 
 function loteRenderRevisao() {
@@ -3328,18 +3393,18 @@ function loteRenderRevisao() {
   const opts = c => Object.entries(CC_NAMES).filter(([k]) => k !== 'vendas').map(([k, n]) => `<option value="${k}" ${k === c ? 'selected' : ''}>${n}</option>`).join('');
   const inp = 'style="width:100%;min-width:0;padding:5px 7px;font-size:12px"';
   const linhas = loteItens.map((it, i) => `
-    <tr style="${it.dup ? 'background:var(--red-light)' : ''}">
+    <tr style="${it.dup ? 'background:var(--red-light)' : (it.vinculo && it.usarVinculo !== false ? 'background:var(--blue-light)' : '')}">
       <td><input type="checkbox" ${it.sel ? 'checked' : ''} onchange="loteItens[${i}].sel=this.checked;loteResumo()"></td>
       <td><img src="${it.thumb}" style="width:56px;cursor:zoom-in;border:1px solid var(--border-light);border-radius:4px" onclick="loteVerImagem(${i})" title="Ver boleto"><div style="font-size:10px;color:var(--text-secondary);max-width:90px;word-break:break-all">${escH(it.origem)}</div></td>
       <td style="min-width:170px"><input ${inp} value="${escH(it.forn)}" onchange="loteItens[${i}].forn=this.value;loteMarcarDuplicados();loteRenderRevisao()"><input ${inp} value="${escH(it.desc)}" placeholder="Descrição" onchange="loteItens[${i}].desc=this.value" style="margin-top:4px;width:100%;padding:5px 7px;font-size:12px"></td>
       <td><input type="date" ${inp} value="${it.venc}" onchange="loteItens[${i}].venc=this.value;loteMarcarDuplicados();loteRenderRevisao()"></td>
       <td style="min-width:95px"><input type="number" step="0.01" ${inp} value="${it.valor}" onchange="loteItens[${i}].valor=parseFloat(this.value)||0;loteMarcarDuplicados();loteRenderRevisao()"></td>
       <td><select ${inp} onchange="loteItens[${i}].centro=this.value">${opts(it.centro)}</select></td>
-      <td style="min-width:200px"><input ${inp} value="${escH(it.barras)}" style="font-family:monospace;font-size:11px;width:100%;padding:5px 7px" placeholder="Linha digitável" onchange="loteEditarCodigo(${i},this.value)"><div style="margin-top:4px">${loteStatusHtml(it)}</div></td>
+      <td style="min-width:200px"><input ${inp} value="${escH(it.barras)}" style="font-family:monospace;font-size:11px;width:100%;padding:5px 7px" placeholder="Linha digitável" onchange="loteEditarCodigo(${i},this.value)"><div style="margin-top:4px">${loteStatusHtml(it, i)}</div></td>
     </tr>`).join('');
   el.innerHTML = `
     <div class="section-title" style="margin-top:18px"><i class="ti ti-list-check"></i> Revisão antes de lançar</div>
-    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Clique na miniatura para ver o boleto. Itens em vermelho parecem duplicados e vêm desmarcados. Ao corrigir a linha digitável, o sistema revalida e recalcula valor e vencimento.</p>
+    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Clique na miniatura para ver o boleto. Itens em azul correspondem a duplicatas/contas já lançadas: em vez de criar uma conta nova, o sistema só completa o código de barras nelas. Itens em vermelho parecem duplicados e vêm desmarcados. Ao corrigir a linha digitável, o sistema revalida e recalcula valor e vencimento.</p>
     <div class="table-wrap"><table>
       <thead><tr><th><input type="checkbox" onchange="loteItens.forEach(x=>x.sel=this.checked);loteRenderRevisao()"></th><th>Boleto</th><th>Fornecedor / Descrição</th><th>Vencimento</th><th>Valor</th><th>Centro</th><th>Linha digitável</th></tr></thead>
       <tbody>${linhas}</tbody></table></div>
@@ -3382,10 +3447,15 @@ async function loteLancar() {
 
   const btn = document.getElementById('lote-btn-lancar');
   btn.disabled = true;
-  let ok = 0; const falhas = [];
+  let ok = 0, completadas = 0; const falhas = [];
   for (const it of sel) {
-    btn.innerHTML = `<span class="spinner"></span> Lançando ${ok + falhas.length + 1} de ${sel.length}...`;
-    const pEntry = { id: Date.now() + ok, forn: it.forn.trim(), desc: it.desc, centro: it.centro, data: it.data, venc: it.venc, valor: it.valor, doc: it.doc, barras: it.barras, obs: it.obs, status: 'pendente' };
+    btn.innerHTML = `<span class="spinner"></span> Lançando ${ok + completadas + falhas.length + 1} de ${sel.length}...`;
+    if (it.vinculo && it.usarVinculo !== false) {
+      try { await completarContaComBoleto(it.vinculo.conta, it.barras, it.venc); it.lancado = true; completadas++; }
+      catch (e) { falhas.push(`${it.forn || it.origem}: ${e.message}`); }
+      continue;
+    }
+    const pEntry = { id: Date.now() + ok, forn: it.forn.trim(), desc: it.desc, centro: it.centro, data: it.data, venc: it.venc, valor: it.valor, doc: it.doc, barras: it.barras, obs: it.obs, forma: 'boleto', status: 'pendente' };
     try {
       await salvarPagar(pEntry);
       appData.pagar.push(pEntry);
@@ -3394,7 +3464,7 @@ async function loteLancar() {
   }
   loteItens = loteItens.filter(i => !i.lancado);
   try { renderDashboard(); if (typeof renderPagar === 'function') renderPagar(); } catch (e) {}
-  alert(`✓ ${ok} boleto(s) lançado(s) em Contas a Pagar.` + (falhas.length ? `\n\nNão foi possível lançar:\n${falhas.join('\n')}` : ''));
+  alert(`✓ ${ok} boleto(s) lançado(s) como novas contas a pagar.` + (completadas ? `\n✓ ${completadas} boleto(s) vinculado(s) a duplicatas/contas já lançadas (código de barras completado).` : '') + (falhas.length ? `\n\nNão foi possível lançar:\n${falhas.join('\n')}` : ''));
   if (loteItens.length) { loteMarcarDuplicados(); loteRenderRevisao(); } else loteLimpar();
 }
 
@@ -3406,6 +3476,279 @@ document.addEventListener('DOMContentLoaded', () => {
   dz.addEventListener('dragleave', () => dz.style.background = '');
   dz.addEventListener('drop', e => { e.preventDefault(); dz.style.background = ''; loteSelecionar(e.dataTransfer.files); });
 });
+</script>
+
+<script>
+// ============================================================
+// NOTA FISCAL DE COMPRA (XML, DANFE com IA ou manual)
+// ============================================================
+let nfDados = null;
+
+const TPAG_NFE = { '01':'dinheiro','03':'credito','04':'debito','15':'boleto','16':'transferencia','17':'pix','18':'transferencia' };
+
+function nfSoNumero(n) { return String(n || '').replace(/\D/g, '').replace(/^0+/, '') || String(n || '').trim(); }
+
+// ---------- Leitura do XML da NF-e (sem IA) ----------
+function nfLerXml(texto) {
+  const xml = new DOMParser().parseFromString(texto, 'application/xml');
+  if (xml.getElementsByTagName('parsererror').length) throw new Error('Arquivo XML inválido.');
+  const um = (raiz, tag) => raiz ? raiz.getElementsByTagNameNS('*', tag)[0] : null;
+  const tx = (raiz, tag) => (um(raiz, tag)?.textContent || '').trim();
+  const inf = um(xml, 'infNFe');
+  if (!inf) throw new Error('Este XML não parece ser uma NF-e.');
+  const ide = um(inf, 'ide'), emit = um(inf, 'emit'), tot = um(inf, 'ICMSTot'), cobr = um(inf, 'cobr');
+  const prods = [...inf.getElementsByTagNameNS('*', 'xProd')].map(e => e.textContent.trim());
+  const dups = cobr ? [...cobr.getElementsByTagNameNS('*', 'dup')].map(d => ({
+    numero: tx(d, 'nDup'), venc: tx(d, 'dVenc'), valor: parseFloat(tx(d, 'vDup')) || 0
+  })) : [];
+  const vLiqFat = cobr ? parseFloat(tx(um(cobr, 'fat'), 'vLiq')) : NaN;
+  const tPags = [...inf.getElementsByTagNameNS('*', 'tPag')].map(e => e.textContent.trim());
+  let forma = dups.length ? 'boleto' : (TPAG_NFE[tPags.find(t => TPAG_NFE[t])] || '');
+  return {
+    origem: 'xml',
+    forn: tx(emit, 'xFant') || tx(emit, 'xNome'),
+    razao: tx(emit, 'xNome'),
+    cnpj: tx(emit, 'CNPJ') || tx(emit, 'CPF'),
+    nf: nfSoNumero(tx(ide, 'nNF')), serie: tx(ide, 'serie'),
+    emissao: (tx(ide, 'dhEmi') || tx(ide, 'dEmi')).substring(0, 10),
+    valor: !isNaN(vLiqFat) && vLiqFat > 0 ? vLiqFat : (parseFloat(tx(tot, 'vNF')) || 0),
+    desc: prods.slice(0, 3).join(', ') + (prods.length > 3 ? ` e mais ${prods.length - 3} item(ns)` : ''),
+    forma, dups
+  };
+}
+
+// ---------- Leitura do DANFE com IA ----------
+const NF_PROMPT = `A(s) imagem(ns) é(são) um DANFE (nota fiscal de compra) digitalizado de uma oficina mecânica. Extraia e responda SOMENTE com JSON válido:
+{"fornecedor":"","cnpj":"","numero_nf":"","serie":"","data_emissao":"YYYY-MM-DD","valor_total":0,"descricao":"","centro_custo":"fornecedores","forma_pagamento":"","duplicatas":[{"numero":"","vencimento":"YYYY-MM-DD","valor":0}]}
+Regras:
+- fornecedor = emitente da nota (quadro superior), não o destinatário.
+- valor_total = "VALOR TOTAL DA NOTA".
+- duplicatas: copie TODAS as linhas do quadro "FATURA / DUPLICATAS" (número, vencimento e valor de cada uma). Se não houver o quadro, deixe a lista vazia.
+- forma_pagamento: boleto | pix | dinheiro | debito | credito | transferencia — só se estiver indicado na nota (ex.: quadro de pagamento ou informações complementares); havendo duplicatas use "boleto"; senão deixe vazio.
+- descricao: resumo curto dos principais produtos (até 3).
+- centro_custo: fornecedores | operacionais | fixas | impostos | financeiras.`;
+
+async function nfArquivo(file) {
+  if (!file) return;
+  document.getElementById('nf-input').value = '';
+  const st = document.getElementById('nf-status');
+  document.getElementById('nf-form').innerHTML = '';
+  try {
+    if (/\.xml$/i.test(file.name) || /xml/.test(file.type)) {
+      const d = nfLerXml(await file.text());
+      st.innerHTML = `<i class="ti ti-check" style="color:var(--green)"></i> XML lido: NF ${escH(d.nf)} de ${escH(d.forn)}.`;
+      nfAbrirFormulario(d);
+      return;
+    }
+    if (!getApiKey()) { alert('Configure sua chave de API da OpenAI (no final desta aba) para ler o DANFE.'); return; }
+    st.innerHTML = '<span class="spinner"></span> Preparando o DANFE...';
+    const imgs = file.type.startsWith('image/') ? [await imagemParaDataUrl(file)] : (await pdfParaImagens(file)).slice(0, 3);
+    st.innerHTML = '<span class="spinner"></span> Lendo a nota fiscal com IA...';
+    const r = await chamarOpenAIImagens(imgs, NF_PROMPT, 1500);
+    const dups = (r.duplicatas || []).filter(x => x && (x.valor || x.vencimento)).map(x => ({ numero: x.numero || '', venc: x.vencimento || '', valor: parseFloat(x.valor) || 0 }));
+    const d = {
+      origem: 'danfe', forn: r.fornecedor || '', cnpj: r.cnpj || '', nf: nfSoNumero(r.numero_nf), serie: r.serie || '',
+      emissao: /^\d{4}-\d{2}-\d{2}$/.test(r.data_emissao || '') ? r.data_emissao : today(),
+      valor: parseFloat(r.valor_total) || 0, desc: r.descricao || '',
+      centro: CC_NAMES[r.centro_custo] ? r.centro_custo : 'fornecedores',
+      forma: dups.length ? 'boleto' : (FORMA_NAMES[r.forma_pagamento] ? r.forma_pagamento : ''), dups, thumb: imgs[0]
+    };
+    st.innerHTML = `<i class="ti ti-check" style="color:var(--green)"></i> DANFE lido pela IA — confira os dados abaixo com a nota antes de lançar.`;
+    nfAbrirFormulario(d);
+  } catch (e) {
+    st.innerHTML = `<span style="color:var(--red-text)"><i class="ti ti-alert-triangle"></i> ${escH(e.message)}</span>`;
+  }
+}
+
+// ---------- Formulário ----------
+function nfAbrirFormulario(d) {
+  nfDados = {
+    origem: d.origem || 'manual', forn: d.forn || '', cnpj: d.cnpj || '', nf: d.nf || '', serie: d.serie || '',
+    emissao: d.emissao || today(), valor: d.valor || 0, desc: d.desc || '', centro: d.centro || 'fornecedores',
+    forma: d.forma || 'boleto', dups: (d.dups && d.dups.length) ? d.dups : [], thumb: d.thumb || null,
+    dataPag: d.emissao || today(), banco: '', parcelasCartao: 1
+  };
+  if (nfDados.forma === 'boleto' && !nfDados.dups.length && nfDados.valor) nfGerarParcelas(1, 30, true);
+  if (!d.origem) document.getElementById('nf-status').innerHTML = '';
+  nfRender();
+}
+
+function nfRender() {
+  const d = nfDados, el = document.getElementById('nf-form');
+  const ccOpts = Object.entries(CC_NAMES).filter(([k]) => k !== 'vendas').map(([k, n]) => `<option value="${k}" ${k === d.centro ? 'selected' : ''}>${n}</option>`).join('');
+  const fOpts = Object.entries(FORMA_NAMES).map(([k, n]) => `<option value="${k}" ${k === d.forma ? 'selected' : ''}>${k === 'boleto' ? 'Boleto / duplicatas (a prazo)' : n}</option>`).join('');
+  const somaDups = d.dups.reduce((a, b) => a + (b.valor || 0), 0);
+  const difere = d.forma === 'boleto' && d.dups.length && Math.abs(somaDups - d.valor) >= 0.01;
+
+  let blocoPag = '';
+  if (d.forma === 'boleto') {
+    blocoPag = `
+      <div class="section-title" style="margin-top:14px;font-size:14px"><i class="ti ti-calendar-dollar"></i> Fatura / Duplicatas</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Nº duplicata</th><th>Vencimento</th><th>Valor (R$)</th><th></th></tr></thead>
+        <tbody>${d.dups.map((x, i) => `<tr>
+          <td><input value="${escH(x.numero)}" placeholder="${escH(d.nf ? d.nf + '/' + (i + 1) : String(i + 1))}" onchange="nfDados.dups[${i}].numero=this.value" style="width:100%;padding:6px 8px"></td>
+          <td><input type="date" value="${x.venc}" onchange="nfDados.dups[${i}].venc=this.value" style="padding:6px 8px"></td>
+          <td><input type="number" step="0.01" value="${x.valor}" onchange="nfDados.dups[${i}].valor=parseFloat(this.value)||0;nfRender()" style="width:120px;padding:6px 8px"></td>
+          <td><button class="btn sm danger" onclick="nfDados.dups.splice(${i},1);nfRender()"><i class="ti ti-trash"></i></button></td></tr>`).join('') ||
+          '<tr><td colspan="4" style="color:var(--text-secondary)">Nenhuma duplicata — gere as parcelas abaixo.</td></tr>'}</tbody>
+      </table></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;font-size:13px">
+        <button class="btn sm" onclick="nfDados.dups.push({numero:'',venc:'',valor:0});nfRender()"><i class="ti ti-plus"></i> Adicionar</button>
+        <span style="color:var(--text-secondary)">ou dividir em</span>
+        <input type="number" id="nf-qtd-parc" value="${Math.max(1, d.dups.length)}" min="1" max="24" style="width:60px;padding:5px 7px">
+        <span style="color:var(--text-secondary)">parcelas a cada</span>
+        <input type="number" id="nf-intervalo" value="30" min="1" style="width:60px;padding:5px 7px">
+        <span style="color:var(--text-secondary)">dias</span>
+        <button class="btn sm" onclick="nfGerarParcelas(+document.getElementById('nf-qtd-parc').value, +document.getElementById('nf-intervalo').value)"><i class="ti ti-refresh"></i> Gerar</button>
+      </div>
+      <div style="margin-top:8px;font-size:13px">Soma das duplicatas: <strong>${fmt(somaDups)}</strong>
+        ${difere ? `<span style="color:var(--red-text);margin-left:8px"><i class="ti ti-alert-triangle"></i> diferente do valor da nota (${fmt(d.valor)})</span>` : (d.dups.length ? '<span style="color:var(--green);margin-left:8px"><i class="ti ti-check"></i> confere com o valor da nota</span>' : '')}</div>
+      <p style="font-size:12px;color:var(--text-secondary);margin-top:6px">Cada duplicata vira uma conta pendente em Contas a Pagar. Quando o boleto chegar, a leitura de boletos encontra a duplicata e só completa o código de barras.</p>`;
+  } else {
+    const ehCartao = d.forma === 'credito';
+    blocoPag = `
+      <div class="form-row" style="margin-top:14px">
+        <div class="form-group"><label>${ehCartao ? 'Data da compra' : 'Data do pagamento'}</label><input type="date" value="${d.dataPag}" onchange="nfDados.dataPag=this.value"></div>
+        ${ehCartao ? `<div class="form-group"><label>Parcelado no cartão em</label><input type="number" min="1" max="24" value="${d.parcelasCartao}" onchange="nfDados.parcelasCartao=parseInt(this.value)||1"></div>`
+          : (d.forma === 'dinheiro' ? '<div class="form-group"></div>' : `<div class="form-group"><label>Banco</label><select onchange="nfDados.banco=this.value"><option value="">— Não informado —</option>${['Santander','Itaú','Outro'].map(b => `<option ${b === d.banco ? 'selected' : ''}>${b}</option>`).join('')}</select></div>`)}
+      </div>
+      <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">${ehCartao
+        ? 'Será lançada como <strong>paga na data da compra</strong>, pelo valor total. Quando pagar a fatura do cartão, não lance a fatura de novo como despesa — essas compras já estão no Livro Caixa. Elas também ficam fora da conciliação bancária.'
+        : 'Será lançada como <strong>paga</strong> nesta data e já entra no Livro Caixa.' + (d.forma === 'dinheiro' ? ' Pagamentos em dinheiro ficam fora da conciliação bancária.' : '')}</p>`;
+  }
+
+  el.innerHTML = `
+    <div class="ai-result" style="margin-top:14px">
+      <div class="ai-label"><i class="ti ti-receipt"></i> Nota fiscal de compra ${d.origem === 'xml' ? '— XML' : d.origem === 'danfe' ? '— lida pela IA' : ''}</div>
+      ${d.thumb ? `<img src="${d.thumb}" onclick="const w=window.open('','_blank');w&&w.document.write('<img src=&quot;'+this.src+'&quot; style=&quot;max-width:100%&quot;>')" style="float:right;width:90px;margin:0 0 8px 12px;border:1px solid var(--border-light);border-radius:4px;cursor:zoom-in" title="Ver DANFE">` : ''}
+      <div class="form-row">
+        <div class="form-group"><label>Fornecedor (emitente)</label><input value="${escH(d.forn)}" onchange="nfDados.forn=this.value"></div>
+        <div class="form-group"><label>CNPJ</label><input value="${escH(d.cnpj)}" onchange="nfDados.cnpj=this.value"></div>
+      </div>
+      <div class="form-row three">
+        <div class="form-group"><label>Nº da NF</label><input value="${escH(d.nf)}" onchange="nfDados.nf=nfSoNumero(this.value)"></div>
+        <div class="form-group"><label>Emissão</label><input type="date" value="${d.emissao}" onchange="nfDados.emissao=this.value"></div>
+        <div class="form-group"><label>Valor da nota (R$)</label><input type="number" step="0.01" value="${d.valor}" onchange="nfDados.valor=parseFloat(this.value)||0;nfRender()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Descrição</label><input value="${escH(d.desc)}" onchange="nfDados.desc=this.value"></div>
+        <div class="form-group"><label>Centro de custo</label><select onchange="nfDados.centro=this.value">${ccOpts}</select></div>
+      </div>
+      <div class="form-row full"><div class="form-group"><label>Forma de pagamento</label><select onchange="nfMudarForma(this.value)">${fOpts}</select></div></div>
+      ${blocoPag}
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="nf-btn-lancar" onclick="nfLancar()"><i class="ti ti-check"></i> Lançar nota fiscal</button>
+      <button class="btn" onclick="nfDados=null;document.getElementById('nf-form').innerHTML='';document.getElementById('nf-status').innerHTML=''"><i class="ti ti-x"></i> Cancelar</button>
+    </div>`;
+}
+
+function nfMudarForma(f) {
+  nfDados.forma = f;
+  if (f === 'boleto' && !nfDados.dups.length && nfDados.valor) nfGerarParcelas(1, 30, true);
+  nfRender();
+}
+
+function nfGerarParcelas(n, intervalo, silencioso) {
+  const d = nfDados; n = Math.max(1, Math.min(24, n || 1)); intervalo = intervalo || 30;
+  if (!silencioso && d.dups.some(x => x.valor) && !confirm('Substituir as duplicatas atuais?')) return;
+  const totalCent = Math.round((d.valor || 0) * 100), base = Math.floor(totalCent / n);
+  d.dups = [];
+  for (let i = 1; i <= n; i++) {
+    const dt = new Date((d.emissao || today()) + 'T12:00:00'); dt.setDate(dt.getDate() + intervalo * i);
+    const cent = i === n ? totalCent - base * (n - 1) : base; // centavos que sobram vão na última
+    d.dups.push({ numero: '', venc: dt.toISOString().split('T')[0], valor: cent / 100 });
+  }
+  if (!silencioso) nfRender();
+}
+
+// ---------- Lançamento ----------
+async function nfLancar() {
+  const d = nfDados; if (!d) return;
+  d.forn = (d.forn || '').trim();
+  if (!d.forn || !d.valor) { alert('Preencha ao menos o fornecedor e o valor da nota.'); return; }
+
+  const jaExiste = d.nf && appData.pagar.some(p => p.nf === d.nf && fornParecido(p.forn, d.forn));
+  if (jaExiste && !confirm(`A NF ${d.nf} de ${d.forn} já foi lançada antes.\n\nLançar de novo mesmo assim?`)) return;
+
+  const obs = [d.cnpj ? 'CNPJ ' + d.cnpj : '', d.serie ? 'Série ' + d.serie : ''].filter(Boolean).join(' · ');
+  const base = { forn: d.forn, centro: d.centro, data: d.emissao || today(), nf: d.nf, obs, barras: '' };
+  const titulo = (d.nf ? `NF ${d.nf}` : 'Nota fiscal') + (d.desc ? ' — ' + d.desc : '');
+  const entradas = [];
+
+  if (d.forma === 'boleto') {
+    if (!d.dups.length) { alert('Inclua ao menos uma duplicata.'); return; }
+    if (d.dups.some(x => !x.venc || !x.valor)) { alert('Todas as duplicatas precisam de vencimento e valor.'); return; }
+    const soma = d.dups.reduce((a, b) => a + b.valor, 0);
+    if (Math.abs(soma - d.valor) >= 0.01 && !confirm(`A soma das duplicatas (${fmt(soma)}) é diferente do valor da nota (${fmt(d.valor)}).\n\nLançar mesmo assim?`)) return;
+    const n = d.dups.length;
+    d.dups.forEach((x, i) => entradas.push({ ...base,
+      desc: (d.nf ? `NF ${d.nf}` : 'Nota fiscal') + (n > 1 ? ` — dup. ${i + 1}/${n}` : '') + (d.desc ? ' — ' + d.desc : ''),
+      venc: x.venc, valor: x.valor, doc: x.numero || (d.nf ? `${d.nf}/${i + 1}` : ''), forma: 'boleto', status: 'pendente' }));
+  } else {
+    const dp = d.dataPag || d.emissao || today();
+    entradas.push({ ...base,
+      desc: titulo + (d.forma === 'credito' && d.parcelasCartao > 1 ? ` (cartão em ${d.parcelasCartao}x)` : ''),
+      venc: dp, valor: d.valor, doc: d.nf || '', forma: d.forma, banco: d.forma === 'dinheiro' ? '' : d.banco,
+      status: 'pago', dataPagamento: dp, jurosMulta: 0 });
+  }
+
+  const btn = document.getElementById('nf-btn-lancar'); btn.disabled = true;
+  let ok = 0; const falhas = [];
+  for (const e of entradas) {
+    btn.innerHTML = `<span class="spinner"></span> Salvando ${ok + falhas.length + 1} de ${entradas.length}...`;
+    try { e.id = Date.now() + ok; await salvarPagar(e); appData.pagar.push(e); ok++; }
+    catch (err) { falhas.push(err.message); }
+  }
+  renderPagar(); renderDashboard();
+  if (document.getElementById('panel-livrocaixa')?.classList.contains('active')) renderLC();
+  if (falhas.length) { alert(`${ok} lançamento(s) salvo(s), ${falhas.length} com erro:\n${falhas.join('\n')}`); btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> Lançar nota fiscal'; return; }
+  alert(d.forma === 'boleto'
+    ? `✓ NF lançada: ${ok} duplicata(s) incluída(s) em Contas a Pagar como pendentes.`
+    : `✓ NF lançada como paga (${FORMA_NAMES[d.forma]}) em ${fmtDate(entradas[0].dataPagamento)}.`);
+  nfDados = null;
+  document.getElementById('nf-form').innerHTML = '';
+  document.getElementById('nf-status').innerHTML = '';
+}
+
+// ============================================================
+// VÍNCULO BOLETO ↔ DUPLICATA JÁ LANÇADA
+// ============================================================
+const FORN_GENERICOS = new Set(['ltda','eireli','epp','me','sa','comercio','comercial','industria','distribuidora','distribuicao','servicos','auto','pecas','autopecas','materiais','do','da','de','dos','das','e','brasil','importacao','exportacao','representacoes','veiculos','automotivo','automotiva']);
+function fornTokens(s) { return normalizeStr(s).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(t => t.length >= 3 && !FORN_GENERICOS.has(t)); }
+function fornParecido(a, b) {
+  const na = normalizeStr(a).replace(/[^a-z0-9]/g, ''), nb = normalizeStr(b).replace(/[^a-z0-9]/g, '');
+  if (!na || !nb) return false;
+  if (na === nb || na.includes(nb) || nb.includes(na)) return true;
+  const ta = fornTokens(a), tb = new Set(fornTokens(b));
+  return ta.some(t => t.length >= 4 && tb.has(t));
+}
+function diasEntre(a, b) { return Math.abs((new Date(a + 'T12:00:00') - new Date(b + 'T12:00:00')) / 864e5); }
+
+// Procura uma conta pendente, ainda sem código de barras, que corresponda ao boleto
+function acharContaAberta(forn, valor, venc, excluirIds) {
+  const cands = appData.pagar.filter(p => p.status !== 'pago' && !p.barras && !(excluirIds && excluirIds.has(p.id)) && Math.abs(p.valor - valor) < 0.01);
+  let melhor = null, porValor = false;
+  for (const p of cands) {
+    const dias = venc ? diasEntre(p.venc, venc) : 0;
+    const nome = fornParecido(p.forn, forn);
+    // nome parecido + vencimento até 10 dias de diferença; ou, se veio de NF, mesmo valor e mesmo vencimento
+    // (cobre boleto emitido por banco/factoring com nome diferente do fornecedor)
+    const ok = (nome && dias <= 10) || (!nome && p.nf && venc && dias === 0);
+    if (!ok) continue;
+    const pontos = (nome ? 0 : 100) + dias + (p.nf ? 0 : 5);
+    if (!melhor || pontos < melhor.pontos) { melhor = { p, pontos }; porValor = !nome; }
+  }
+  return melhor ? { conta: melhor.p, porValor } : null;
+}
+
+async function completarContaComBoleto(conta, barras, venc) {
+  conta.barras = barras || conta.barras;
+  if (venc) conta.venc = venc;
+  if (!conta.forma) conta.forma = 'boleto';
+  await atualizarRegistroPagar(conta.id, conta);
+}
 </script>
 
 </body>
